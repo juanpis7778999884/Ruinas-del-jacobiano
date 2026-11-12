@@ -1,0 +1,23 @@
+{
+  "name": "ruinas-del-jacobiano",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "verify:math": "tsx scripts/verifyMath.ts"
+  },
+  "dependencies": {
+    "katex": "^0.16.11",
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.7",
+    "tsx": "^4.23.15",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}

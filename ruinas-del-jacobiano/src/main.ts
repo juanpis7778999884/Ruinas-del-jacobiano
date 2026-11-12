@@ -1,0 +1,22 @@
+import Phaser from 'phaser';
+import 'katex/dist/katex.min.css';
+import './style.css';
+import { GAME_H, GAME_W } from './config';
+import { BootScene } from './scenes/BootScene';
+import { MenuScene } from './scenes/MenuScene';
+import { WorldScene } from './scenes/WorldScene';
+import { mountTouchUI } from './systems/Controls';
+
+new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: 'game',
+  width: GAME_W,
+  height: GAME_H,
+  backgroundColor: '#1b1f3b',
+  pixelArt: true,
+  physics: { default: 'arcade', arcade: { debug: false } },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: [BootScene, MenuScene, WorldScene],
+});
+
+mountTouchUI();

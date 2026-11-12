@@ -1,0 +1,278 @@
+:root {
+  --bg: #1b1f3b;
+  --card: #10132b;
+  --gold: #ffd166;
+  --blue: #8ecae6;
+  --ok: #80ed99;
+  --bad: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  font-family: 'Trebuchet MS', system-ui, sans-serif;
+  color: #fff;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* ───────── Modales ───────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 20, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 10px;
+}
+
+.card {
+  background: var(--card);
+  border: 3px solid var(--gold);
+  border-radius: 16px;
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 16px 20px;
+  touch-action: pan-y;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--gold);
+}
+
+.tag {
+  background: #2d3366;
+  color: var(--blue);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+}
+
+.statement {
+  margin: 10px 0;
+  padding: 10px;
+  background: #181c3d;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.answer-row {
+  display: flex;
+  gap: 8px;
+}
+
+.answer-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.1rem;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid #3a4080;
+  background: #0b0d20;
+  color: #fff;
+}
+
+.answer-row input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  border: 2px solid #3a4080;
+  background: #23285a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--gold);
+}
+
+button.primary {
+  background: var(--gold);
+  color: #1b1f3b;
+  border-color: var(--gold);
+  font-weight: bold;
+}
+
+.feedback {
+  min-height: 1.4em;
+  margin-top: 8px;
+  font-weight: bold;
+}
+.feedback.ok {
+  color: var(--ok);
+}
+.feedback.bad {
+  color: var(--bad);
+}
+.feedback.warn {
+  color: var(--gold);
+}
+
+.hint {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #1f2550;
+  border-left: 4px solid var(--blue);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.solution h3 {
+  color: var(--blue);
+  margin: 12px 0 4px;
+}
+
+.solution .step {
+  overflow-x: auto;
+}
+
+.solution .final {
+  margin-top: 6px;
+  font-weight: bold;
+  color: var(--ok);
+}
+
+.card-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.journal section {
+  margin: 14px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #2d3366;
+}
+
+.journal h3 {
+  margin: 0 0 4px;
+  color: var(--blue);
+}
+
+.journal .formula {
+  overflow-x: auto;
+}
+
+.journal .note {
+  margin: 4px 0 0;
+  color: #d0d4f5;
+  font-size: 0.95rem;
+}
+
+/* ───────── HUD y controles táctiles ───────── */
+#hud-buttons {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+#hud-buttons button {
+  background: rgba(16, 19, 43, 0.85);
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+#joystick,
+#actionpad {
+  display: none;
+}
+
+body.touch #joystick {
+  display: block;
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  z-index: 20;
+  touch-action: none;
+}
+
+#joystick .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(255, 209, 102, 0.75);
+  pointer-events: none;
+}
+
+body.touch #actionpad {
+  display: flex;
+  gap: 16px;
+  position: fixed;
+  right: 24px;
+  bottom: 32px;
+  z-index: 20;
+}
+
+#actionpad button {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  font-weight: bold;
+  background: rgba(35, 40, 90, 0.85);
+  touch-action: none;
+}
+
+#actionpad .a {
+  background: rgba(255, 209, 102, 0.9);
+  color: #1b1f3b;
+}
+
+@media (max-height: 420px) {
+  .card {
+    padding: 10px 14px;
+  }
+  .statement {
+    margin: 6px 0;
+  }
+}
