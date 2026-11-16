@@ -3,6 +3,7 @@
  * Cada problema trae: enunciado en LaTeX, respuesta numérica, pistas y solución paso a paso.
  * Para agregar un tema nuevo: escribe un generador y regístralo en GENERATORS.
  */
+import { integrate2D, jacobianNum, polygonArea } from './numeric';
 
 export type Topic = 'rect' | 'general' | 'polar' | 'jacobian' | 'change';
 export type Difficulty = 1 | 2 | 3;
@@ -16,6 +17,12 @@ export interface Question {
   tolerance: number;
   hints: string[];
   solutionTex: string[];
+  /**
+   * Verificación numérica INDEPENDIENTE de la fórmula cerrada:
+   * calcula la respuesta por cuadratura o diferencias finitas con los
+   * mismos parámetros del problema. No se guarda ni se muestra al jugador.
+   */
+  verify?: () => number;
 }
 
 const tex = String.raw;
@@ -37,6 +44,9 @@ const lin = (a: number, u: string, b: number, v: string): string => {
   if (b !== 0) parts.push(`${b > 0 && parts.length ? '+' : ''}${co(b)}${v}`);
   return parts.join('') || '0';
 };
+/** bordes del disco de radio R en cartesianas (para la verificación numérica) */
+const diskLo = (R: number) => (x: number): number => -Math.sqrt(Math.max(0, R * R - x * x));
+const diskHi = (R: number) => (x: number): number => Math.sqrt(Math.max(0, R * R - x * x));
 
 function mk(
   topic: Topic,
@@ -46,9 +56,10 @@ function mk(
   answer: number,
   hints: string[],
   solutionTex: string[],
+  verify?: () => number,
   tolerance = 0.02,
 ): Question {
-  return { topic, difficulty, title, statementTex, answer, tolerance, hints, solutionTex };
+  return { topic, difficulty, title, statementTex, answer, tolerance, hints, solutionTex, verify };
 }
 
 /* ───────────────────────── Mundo 1 · Fubini sobre rectángulos ───────────────────────── */
@@ -70,6 +81,7 @@ function rect(d: Difficulty): Question {
         tex`\text{Externa: }\ ${fmt(a * q)}\cdot\tfrac{${p}^2}{2}+${fmt((b * q * q) / 2)}\cdot ${p}`,
         tex`=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => a * x + b * y, 0, p, () => 0, () => q),
     );
   }
   if (d === 2) {
@@ -87,6 +99,7 @@ function rect(d: Difficulty): Question {
         tex`\iint_R x^{${m}}y^{${n}}dA=\left(\int_0^{${a}}x^{${m}}dx\right)\left(\int_0^{${b}}y^{${n}}dy\right)`,
         tex`=\frac{${a}^{${m + 1}}}{${m + 1}}\cdot\frac{${b}^{${n + 1}}}{${n + 1}}=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => Math.pow(x, m) * Math.pow(y, n), 0, a, () => 0, () => b),
     );
   }
   const a = ri(1, 3), b = ri(1, 2);
@@ -103,6 +116,7 @@ function rect(d: Difficulty): Question {
       tex`\left(\int_0^{${a}}x\,dx\right)\left(\int_0^{${b}}e^{y}dy\right)=\frac{${a}^2}{2}\left(e^{${b}}-1\right)`,
       tex`=${fmt(ans)}`,
     ],
+    () => integrate2D((x, y) => x * Math.exp(y), 0, a, () => 0, () => b),
   );
 }
 
@@ -123,6 +137,7 @@ function general(d: Difficulty): Question {
         tex`\int_0^{${a}}\!\!\int_0^{${co(m)}x}${co(c)}x\,dy\,dx=\int_0^{${a}}${co(c * m)}x^2\,dx`,
         tex`=${co(c * m)}\cdot\frac{${a}^3}{3}=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => c * x, 0, a, () => 0, (x) => m * x),
     );
   }
   if (d === 2) {
@@ -140,6 +155,7 @@ function general(d: Difficulty): Question {
         tex`\int_0^{${a}}${co(c)}x\left(\int_0^{x^2}y\,dy\right)dx=\int_0^{${a}}${co(c)}x\cdot\frac{x^4}{2}\,dx`,
         tex`=\frac{${c}}{2}\cdot\frac{${a}^6}{6}=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => c * x * y, 0, a, () => 0, (x) => x * x),
     );
   }
   const a = pick([1, 2]), c = ri(1, 3);
@@ -157,6 +173,7 @@ function general(d: Difficulty): Question {
       tex`=\int_0^{${a}}${co(c)}\,y\,e^{y^2}\,dy=${co(c)}\cdot\frac{1}{2}\left(e^{${a * a}}-1\right)`,
       tex`=${fmt(ans)}`,
     ],
+    () => integrate2D((x, y) => c * Math.exp(y * y), 0, a, (x) => x, () => a),
   );
 }
 
@@ -177,6 +194,7 @@ function polar(d: Difficulty): Question {
         tex`\int_0^{2\pi}\!\!\int_0^{${R}} r^2\cdot r\,dr\,d\theta=2\pi\cdot\frac{${R}^4}{4}`,
         tex`=\frac{\pi\cdot ${R}^4}{2}=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => x * x + y * y, -R, R, diskLo(R), diskHi(R)),
     );
   }
   if (d === 2) {
@@ -194,6 +212,7 @@ function polar(d: Difficulty): Question {
         tex`\int_0^{2\pi}\!\!\int_0^{${R}} ${co(c)}\,r\cdot r\,dr\,d\theta=${co(c)}\cdot 2\pi\cdot\frac{${R}^3}{3}`,
         tex`=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => c * Math.sqrt(x * x + y * y), -R, R, diskLo(R), diskHi(R)),
     );
   }
   if (Math.random() < 0.5) {
@@ -211,6 +230,7 @@ function polar(d: Difficulty): Question {
         tex`\int_0^{\pi/2}\!\!\int_0^{${R}} ${co(c)}\,r^2\cos\theta\sin\theta\cdot r\,dr\,d\theta`,
         tex`=${co(c)}\left(\int_0^{\pi/2}\cos\theta\sin\theta\,d\theta\right)\left(\int_0^{${R}}r^3dr\right)=${co(c)}\cdot\frac12\cdot\frac{${R}^4}{4}=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => c * x * y, 0, R, () => 0, diskHi(R)),
     );
   }
   const R = pick([1, 2]);
@@ -227,6 +247,7 @@ function polar(d: Difficulty): Question {
       tex`\int_0^{2\pi}\!\!\int_0^{${R}}e^{-r^2}\,r\,dr\,d\theta=2\pi\cdot\frac{1-e^{-${R * R}}}{2}`,
       tex`=\pi\left(1-e^{-${R * R}}\right)=${fmt(ans)}`,
     ],
+    () => integrate2D((x, y) => Math.exp(-(x * x + y * y)), -R, R, diskLo(R), diskHi(R)),
   );
 }
 
@@ -247,6 +268,7 @@ function jacobian(d: Difficulty): Question {
       [
         tex`\frac{\partial(x,y)}{\partial(u,v)}=\begin{vmatrix}${a}&${b}\\${c}&${dd}\end{vmatrix}=(${a})(${dd})-(${b})(${c})=${ans}`,
       ],
+      () => jacobianNum((u, v) => [a * u + b * v, c * u + dd * v], 0.3, -0.7),
       0.01,
     );
   }
@@ -265,6 +287,7 @@ function jacobian(d: Difficulty): Question {
         tex`J=\begin{vmatrix}2u&-2v\\2v&2u\end{vmatrix}=4u^2+4v^2`,
         tex`J(${u0},${v0})=4(${u0 * u0}+${v0 * v0})=${ans}`,
       ],
+      () => jacobianNum((u, v) => [u * u - v * v, 2 * u * v], u0, v0),
       0.01,
     );
   }
@@ -283,6 +306,7 @@ function jacobian(d: Difficulty): Question {
         tex`J=e^{2u}(\cos^2v+\sin^2v)=e^{2u}`,
         tex`J=e^{${2 * u0}}=${fmt(ans)}`,
       ],
+      () => jacobianNum((u, v) => [Math.exp(u) * Math.cos(v), Math.exp(u) * Math.sin(v)], u0, 0),
     );
   }
   const u0 = ri(1, 4), v0 = ri(1, 3);
@@ -297,9 +321,10 @@ function jacobian(d: Difficulty): Question {
     ],
     [
       tex`J=\begin{vmatrix}v&u\\ 1/v&-u/v^2\end{vmatrix}=-\frac{u}{v}-\frac{u}{v}=-\frac{2u}{v}`,
-      tex`J(${u0},${v0})=-\frac{${2 * u0}}{${v0}}=${fmt(ans)}`,
-    ],
-  );
+        tex`J(${u0},${v0})=-\frac{${2 * u0}}{${v0}}=${fmt(ans)}`,
+      ],
+      () => jacobianNum((u, v) => [u * v, u / v], u0, v0),
+    );
 }
 
 /* ───────────────────────── Mundo 4b · Cambio de variables ───────────────────────── */
@@ -322,6 +347,13 @@ function change(d: Difficulty): Question {
         tex`J=(${a})(${dd})-(${b})(${c})=${J}`,
         tex`\text{Área}=|J|\cdot(${p}\cdot ${q})=${Math.abs(J)}\cdot ${p * q}=${ans}`,
       ],
+      () =>
+        polygonArea([
+          [a * 0 + b * 0, c * 0 + dd * 0],
+          [a * p + b * 0, c * p + dd * 0],
+          [a * p + b * q, c * p + dd * q],
+          [a * 0 + b * q, c * 0 + dd * q],
+        ]),
       0.01,
     );
   }
@@ -340,6 +372,7 @@ function change(d: Difficulty): Question {
         tex`\iint_D xy\,dA=\int_0^1\!\!\int_0^1 (${a}u)(${b}v)\cdot ${a * b}\,du\,dv`,
         tex`=${a * a * b * b}\cdot\frac12\cdot\frac12=${fmt(ans)}`,
       ],
+      () => integrate2D((x, y) => x * y, 0, a, () => 0, () => b),
     );
   }
   const a = ri(1, 3), b = ri(1, 3);
@@ -356,6 +389,14 @@ function change(d: Difficulty): Question {
       tex`J=\begin{vmatrix}1/2&1/2\\1/2&-1/2\end{vmatrix}=-\tfrac12\ \Rightarrow\ |J|=\tfrac12`,
       tex`\iint_D(x+y)dA=\int_0^{${b}}\!\!\int_0^{${a}}u\cdot\tfrac12\,du\,dv=\tfrac12\cdot\frac{${a}^2}{2}\cdot ${b}=${fmt(ans)}`,
     ],
+    () =>
+      integrate2D(
+        (x, y) => x + y,
+        0,
+        (a + b) / 2,
+        (x) => Math.max(-x, x - b),
+        (x) => Math.min(a - x, x),
+      ),
   );
 }
 
