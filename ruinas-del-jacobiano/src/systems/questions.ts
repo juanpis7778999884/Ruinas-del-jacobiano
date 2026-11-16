@@ -321,10 +321,10 @@ function jacobian(d: Difficulty): Question {
     ],
     [
       tex`J=\begin{vmatrix}v&u\\ 1/v&-u/v^2\end{vmatrix}=-\frac{u}{v}-\frac{u}{v}=-\frac{2u}{v}`,
-        tex`J(${u0},${v0})=-\frac{${2 * u0}}{${v0}}=${fmt(ans)}`,
-      ],
-      () => jacobianNum((u, v) => [u * v, u / v], u0, v0),
-    );
+      tex`J(${u0},${v0})=-\frac{${2 * u0}}{${v0}}=${fmt(ans)}`,
+    ],
+    () => jacobianNum((u, v) => [u * v, u / v], u0, v0),
+  );
 }
 
 /* ───────────────────────── Mundo 4b · Cambio de variables ───────────────────────── */
