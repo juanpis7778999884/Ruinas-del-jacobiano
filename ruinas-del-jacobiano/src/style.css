@@ -150,12 +150,6 @@ body.touch .math-keys {
   display: flex;
 }
 
-@media (pointer: coarse) {
-  .math-keys {
-    display: flex;
-  }
-}
-
 .math-keys button {
   min-width: 44px;
   min-height: 44px;

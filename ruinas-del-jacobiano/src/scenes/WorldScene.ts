@@ -334,6 +334,8 @@ export class WorldScene extends Phaser.Scene {
       this.player.setVelocity(0, 0);
       (this.enemies.getChildren() as Sprite[]).forEach((e) => e.active && e.setVelocity(0, 0));
       this.prompt.setVisible(false);
+      // un menú pulsado con un modal o diálogo abierto no se encola
+      Controls.consume('menu');
       return;
     }
 

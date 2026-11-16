@@ -69,6 +69,9 @@ export class Dialog {
     if (!this.open) return;
     const a = Controls.consume('interact');
     const b = Controls.consume('attack');
+    // Mientras hay diálogo, el menú se descarta: no debe quedar encolado
+    // para ejecutarse cuando el diálogo se cierre.
+    Controls.consume('menu');
     if (a || b) this.next();
   }
 
