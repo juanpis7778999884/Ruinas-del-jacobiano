@@ -10,7 +10,8 @@
     "verify:math": "tsx scripts/verifyMath.ts",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "test:parser": "tsx scripts/testParser.ts",
-    "check:latex": "tsx scripts/checkLatex.ts"
+    "check:latex": "tsx scripts/checkLatex.ts",
+    "audit:variety": "tsx scripts/auditVariety.ts"
   },
   "dependencies": {
     "katex": "^0.16.11",
