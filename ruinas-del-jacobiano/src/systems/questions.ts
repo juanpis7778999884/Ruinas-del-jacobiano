@@ -687,20 +687,27 @@ function polar(d: Difficulty): Question {
     );
   }
   const R = ri(1, 4), c = ri(2, 3);
-  const ans = c * Math.PI * Math.log(1 + R * R);
+  const ans = (c * 2 * Math.PI * Math.pow(R, 3)) / 3;
   return mk(
-    'polar', 3, 'El integrando 1/(1 + r²) con factor',
-    tex`\iint_D ${co(c)}\frac{1}{1+x^2+y^2}\,dA,\qquad D:\ x^2+y^2\le ${R * R}`,
+    'polar', 3, 'El volumen del hemisferio con factor',
+    tex`\iint_D ${co(c)}\sqrt{${R * R}-x^2-y^2}\,dA,\qquad D:\ x^2+y^2\le ${R * R}`,
     ans,
     [
-      'Como el caso sin factor, pero ahora el factor multiplica toda la integral.',
-      'En polares: ∫ r/(1+r²) dr = ½ ln(1 + r²).',
+      'El integrando es la altura de la esfera de radio ' + R + ': la integral da el volumen del hemisferio.',
+      'En polares el integrando es √(R² − r²) y dA aporta el r: ∫ r√(R² − r²) dr.',
     ],
     [
-      tex`\int_0^{2\pi}\!\!\int_0^{${R}} ${co(c)}\frac{r}{1+r^2}\,dr\,d\theta=${co(c)}\cdot 2\pi\cdot\frac{1}{2}\ln(1+${R * R})`,
+      tex`\int_0^{2\pi}\!\!\int_0^{${R}}${co(c)}\sqrt{${R * R}-r^2}\,r\,dr\,d\theta=${co(c)}\cdot 2\pi\cdot\frac{${R}^3}{3}`,
       tex`=${fmt(ans)}`,
     ],
-    () => integrate2D((x, y) => c / (1 + x * x + y * y), -R, R, diskLo(R), diskHi(R)),
+    () =>
+      integrate2D(
+        (x, y) => c * Math.sqrt(Math.max(0, R * R - x * x - y * y)),
+        -R,
+        R,
+        diskLo(R),
+        diskHi(R),
+      ),
   );
 }
 
