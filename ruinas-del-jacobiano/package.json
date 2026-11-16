@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "verify:math": "tsx scripts/verifyMath.ts",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
-    "test:parser": "tsx scripts/testParser.ts"
+    "test:parser": "tsx scripts/testParser.ts",
+    "check:latex": "tsx scripts/checkLatex.ts"
   },
   "dependencies": {
     "katex": "^0.16.11",
