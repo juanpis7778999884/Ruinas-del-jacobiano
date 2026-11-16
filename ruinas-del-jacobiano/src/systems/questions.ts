@@ -57,7 +57,7 @@ function mk(
   hints: string[],
   solutionTex: string[],
   verify?: () => number,
-  tolerance = 0.02,
+  tolerance = 0.006,
 ): Question {
   return { topic, difficulty, title, statementTex, answer, tolerance, hints, solutionTex, verify };
 }

@@ -163,7 +163,12 @@ export function parseAnswer(input: string): number | null {
   }
 }
 
-/** Tolerancia absoluta mínima o 0.3 % relativo (lo que sea mayor). */
-export function checkAnswer(expected: number, got: number, tol = 0.02): boolean {
+/**
+ * Tolerancia: 0.006 absoluto o 0.3 % relativo (lo que sea mayor).
+ * El 0.3 % relativo deja pasar respuestas grandes redondeadas con poco error
+ * absoluto; el 0.006 absoluto deja pasar un redondeo a 2 decimales
+ * (0.859 → 0.86) pero NO un redondeo mal hecho (0.859 → 0.87).
+ */
+export function checkAnswer(expected: number, got: number, tol = 0.006): boolean {
   return Math.abs(expected - got) <= Math.max(tol, Math.abs(expected) * 0.003);
 }
