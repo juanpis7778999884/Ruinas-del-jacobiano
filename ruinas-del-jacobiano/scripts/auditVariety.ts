@@ -66,9 +66,26 @@ for (const topic of TOPICS) {
   console.log(`${pad(topic, 10)}${repeats[topic].map((n) => pad(String(n), 8)).join('')}`);
 }
 
+// Si el tema tiene al menos 6 variantes, no se debe repetir ninguna dentro
+// de la ventana de 5 (criterio de T8: 200 llamadas seguidas sin repetir).
+let repeatFails = 0;
+for (const topic of TOPICS) {
+  for (let i = 0; i < DIFFICULTIES.length; i++) {
+    if (uniq[topic][i] >= 6 && repeats[topic][i] > 0) {
+      repeatFails++;
+      console.log(`  ❌ ${topic} d${DIFFICULTIES[i]}: ${repeats[topic][i]} repetición(es) en ventana de 5`);
+    }
+  }
+}
+
 const worst = Math.min(...TOPICS.flatMap((t) => uniq[t]));
 if (fails > 0) {
   console.log(`\n❌ ${fails} combinación(es) con menos de ${MIN_UNIQUE} enunciados únicos (mínimo actual: ${worst}).`);
   process.exit(1);
 }
+if (repeatFails > 0) {
+  console.log(`\n❌ ${repeatFails} combinación(es) repiten enunciado dentro de la ventana de 5.`);
+  process.exit(1);
+}
 console.log(`\n✅ Todas las combinaciones tienen al menos ${MIN_UNIQUE} enunciados únicos (mínimo: ${worst}).`);
+console.log('✅ Ninguna combinación repite enunciado dentro de una ventana de 5.');

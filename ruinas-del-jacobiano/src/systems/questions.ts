@@ -408,8 +408,47 @@ const GENERATORS: Record<Topic, (d: Difficulty) => Question> = {
   change,
 };
 
+/* ───────────────────────── Variedad: no repetir el enunciado de hace rato ───────────────────────── */
+const MAX_RECENT = 5;
+const MAX_TRIES = 12;
+/** últimos enunciados por (tema, dificultad) — solo en memoria, no va al guardado */
+const recentBuffer = new Map<string, string[]>();
+/** cuántos enunciados distintos tiene cada (tema, dificultad) */
+const poolSize = new Map<string, number>();
+
+/**
+ * Estimate cuántas variantes tiene un tema+dificultad. Se hace una sola vez
+ * por combinación con 40 muestras: si el tema tiene pocas variantes se
+ * detectan todas; si tiene muchas, da igual porque el tope es 5.
+ */
+function estimatePool(topic: Topic, difficulty: Difficulty): number {
+  const key = `${topic}:${difficulty}`;
+  let n = poolSize.get(key);
+  if (n === undefined) {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) seen.add(GENERATORS[topic](difficulty).statementTex);
+    n = seen.size;
+    poolSize.set(key, n);
+  }
+  return n;
+}
+
 export function generateQuestion(topic: Topic, difficulty: Difficulty): Question {
-  return GENERATORS[topic](difficulty);
+  const key = `${topic}:${difficulty}`;
+  const buf = recentBuffer.get(key) ?? [];
+  recentBuffer.set(key, buf);
+  // ventana: hasta 5 recientes, pero nunca más que (variantes del tema − 1)
+  const limit = Math.min(MAX_RECENT, Math.max(0, estimatePool(topic, difficulty) - 1));
+
+  let q = GENERATORS[topic](difficulty);
+  for (let tries = 0; tries < MAX_TRIES; tries++) {
+    const window = buf.slice(-limit);
+    if (!window.includes(q.statementTex)) break;
+    q = GENERATORS[topic](difficulty);
+  }
+  buf.push(q.statementTex);
+  if (buf.length > MAX_RECENT) buf.shift();
+  return q;
 }
 
 export const TOPIC_LABEL: Record<Topic, string> = {
