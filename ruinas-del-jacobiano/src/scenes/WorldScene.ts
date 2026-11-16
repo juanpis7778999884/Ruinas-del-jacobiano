@@ -68,6 +68,8 @@ export class WorldScene extends Phaser.Scene {
   private invuln = 0;
   private nextAttack = 0;
   private lastToast = 0;
+  /** hasta este instante (ms) el empuje del daño manda sobre el input */
+  private knockUntil = 0;
 
   constructor() {
     super('World');
@@ -82,6 +84,7 @@ export class WorldScene extends Phaser.Scene {
     this.invuln = 0;
     this.nextAttack = 0;
     this.lastToast = 0;
+    this.knockUntil = 0;
     this.runes = [];
     this.npcs = [];
     this.exits = [];
@@ -329,7 +332,8 @@ export class WorldScene extends Phaser.Scene {
     // Movimiento
     const d = Controls.dir;
     const speed = PLAYER_SPEED * (Save.data.items.polar ? 1.25 : 1);
-    this.player.setVelocity(d.x * speed, d.y * speed);
+    // durante el empujón el input no pisa la velocidad de knockback
+    if (time >= this.knockUntil) this.player.setVelocity(d.x * speed, d.y * speed);
     if (d.x !== 0 || d.y !== 0) this.facing.set(d.x, d.y).normalize();
     if (d.x < -0.1) this.player.setFlipX(true);
     else if (d.x > 0.1) this.player.setFlipX(false);
@@ -576,6 +580,7 @@ export class WorldScene extends Phaser.Scene {
     if (from) {
       const v = new Phaser.Math.Vector2(this.player.x - from.x, this.player.y - from.y).normalize().scale(220);
       this.player.setVelocity(v.x, v.y);
+      this.knockUntil = now + 150;
     }
     if (Save.data.hearts <= 0) void this.defeat();
   }
