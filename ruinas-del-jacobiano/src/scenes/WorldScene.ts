@@ -181,9 +181,11 @@ export class WorldScene extends Phaser.Scene {
       this.add
         .text(px(def.x), px(def.y) - 26, def.name, {
           fontFamily: FONT,
-          fontSize: '12px',
+          fontSize: '16px',
           color: '#ffd166',
           backgroundColor: '#10132b',
+          stroke: '#000',
+          strokeThickness: 3,
         })
         .setOrigin(0.5)
         .setDepth(6);
@@ -199,9 +201,11 @@ export class WorldScene extends Phaser.Scene {
       this.add
         .text(px(def.x), px(def.y) + 26, def.label, {
           fontFamily: FONT,
-          fontSize: '12px',
+          fontSize: '16px',
           color: locked ? '#888899' : '#e0aaff',
           backgroundColor: '#10132b',
+          stroke: '#000',
+          strokeThickness: 3,
         })
         .setOrigin(0.5)
         .setDepth(6);
@@ -224,9 +228,11 @@ export class WorldScene extends Phaser.Scene {
       this.add
         .text(px(boss.x), px(boss.y) - 46, boss.name, {
           fontFamily: FONT,
-          fontSize: '13px',
+          fontSize: '16px',
           color: '#ff6b6b',
           backgroundColor: '#10132b',
+          stroke: '#000',
+          strokeThickness: 3,
         })
         .setOrigin(0.5)
         .setDepth(9);
@@ -266,9 +272,11 @@ export class WorldScene extends Phaser.Scene {
     this.prompt = this.add
       .text(0, 0, '', {
         ...base,
-        fontSize: '14px',
+        fontSize: '18px',
         backgroundColor: '#10132b',
         padding: { x: 6, y: 3 },
+        stroke: '#000',
+        strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setDepth(30)
