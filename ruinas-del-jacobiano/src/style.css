@@ -138,6 +138,33 @@ button.primary {
   color: #8a90bd;
 }
 
+/* ───────── Teclado matemático del modal (solo táctil) ───────── */
+.math-keys {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+body.touch .math-keys {
+  display: flex;
+}
+
+@media (pointer: coarse) {
+  .math-keys {
+    display: flex;
+  }
+}
+
+.math-keys button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 1.15rem;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
 .feedback {
   min-height: 1.4em;
   margin-top: 8px;

@@ -45,6 +45,16 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
           <button class="primary" data-role="submit">Responder</button>
         </div>
         <div class="parse-echo" aria-live="polite"></div>
+        <div class="math-keys" role="group" aria-label="Teclado matemático">
+          <button type="button" data-key="π" aria-label="pi">π</button>
+          <button type="button" data-key="e" aria-label="e">e</button>
+          <button type="button" data-key="√(" aria-label="raíz cuadrada">√(</button>
+          <button type="button" data-key="^" aria-label="potencia">^</button>
+          <button type="button" data-key="/" aria-label="dividir">/</button>
+          <button type="button" data-key="(" aria-label="abre paréntesis">(</button>
+          <button type="button" data-key=")" aria-label="cierra paréntesis">)</button>
+          <button type="button" data-key="⌫" aria-label="borrar">⌫</button>
+        </div>
         <div class="feedback" aria-live="polite"></div>
         <div class="hints"></div>
         <div class="solution"></div>
@@ -63,6 +73,7 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
     const input = $<HTMLInputElement>('input');
     const feedback = $('.feedback');
     const echo = $('.parse-echo');
+    const keysBox = $('.math-keys');
     const hintsBox = $('.hints');
     const solution = $('.solution');
     const submitBtn = $<HTMLButtonElement>('[data-role="submit"]');
@@ -173,6 +184,40 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
       echo.textContent = v === null ? '' : `Entendí: ${fmt(v)}`;
     };
     input.addEventListener('input', updateEcho);
+
+    // Teclado matemático (táctil): inserta en la posición del cursor.
+    const insertKey = (text: string) => {
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? start;
+      if (text === '⌫') {
+        if (start !== end) {
+          input.value = input.value.slice(0, start) + input.value.slice(end);
+          input.setSelectionRange(start, start);
+        } else if (start > 0) {
+          input.value = input.value.slice(0, start - 1) + input.value.slice(start);
+          input.setSelectionRange(start - 1, start - 1);
+        }
+      } else {
+        input.value = input.value.slice(0, start) + text + input.value.slice(end);
+        const pos = start + text.length;
+        input.setSelectionRange(pos, pos);
+      }
+      input.focus();
+      updateEcho();
+    };
+    let lastKeyPointer = 0;
+    keysBox.querySelectorAll<HTMLButtonElement>('button[data-key]').forEach((b) => {
+      // pointerdown + preventDefault: el input no pierde el foco ni se cierra el teclado del celular
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        lastKeyPointer = Date.now();
+        insertKey(b.dataset.key ?? '');
+      });
+      // click solo si no hubo pointerdown (activación con teclado)
+      b.addEventListener('click', () => {
+        if (Date.now() - lastKeyPointer > 700) insertKey(b.dataset.key ?? '');
+      });
+    });
 
     if (opts.freeHint) showHint();
     setTimeout(() => input.focus(), 50);
