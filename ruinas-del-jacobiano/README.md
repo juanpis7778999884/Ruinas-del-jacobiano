@@ -19,7 +19,7 @@ Abre http://localhost:5173
 | Atacar | Espacio, K | Botón B |
 | Diario de fórmulas | J | Botón 📖 |
 | Lente del Jacobiano | Q | Botón 🔍 |
-| Menú | Esc | — |
+| Menú | Esc | Botón ☰ Menú |
 
 ## Desplegar en Vercel
 1. Sube el proyecto a GitHub.

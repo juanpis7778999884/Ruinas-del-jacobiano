@@ -93,7 +93,8 @@ export function mountTouchUI() {
   bar.id = 'hud-buttons';
   bar.innerHTML = `
     <button data-act="journal" aria-label="Diario">📖 Diario</button>
-    <button data-act="lens" aria-label="Lente">🔍 Lente</button>`;
+    <button data-act="lens" aria-label="Lente">🔍 Lente</button>
+    <button data-act="menu" aria-label="Menú">☰ Menú</button>`;
   document.body.appendChild(bar);
   bar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.addEventListener('pointerdown', (e) => {
