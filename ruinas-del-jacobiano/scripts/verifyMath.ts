@@ -1,8 +1,6 @@
-import { generateQuestion, Topic, Difficulty } from '../src/systems/questions';
+import { generateQuestion } from '../src/systems/questions';
+import type { Topic, Difficulty } from '../src/systems/questions';
 import { checkAnswer } from '../src/systems/mathParse';
-
-type Topic = 'rect' | 'general' | 'polar' | 'jacobian' | 'change';
-type Difficulty = 1 | 2 | 3;
 
 const TOPICS: Topic[] = ['rect', 'general', 'polar', 'jacobian', 'change'];
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
@@ -174,7 +172,7 @@ function verifyJacobian(d: Difficulty, s: string): number | null {
     if (!m) return null;
     const xp = parseLinear(m[1]);
     const yp = parseLinear(m[2]);
-    const T = (u: number, v: number) => [xp.u * u + xp.v * v, yp.u * u + yp.v * v];
+    const T = (u: number, v: number): [number, number] => [xp.u * u + xp.v * v, yp.u * u + yp.v * v];
     return jacobianNum(T, 0.3, -0.7);
   }
   if (d === 2) {
@@ -204,7 +202,7 @@ function verifyChange(d: Difficulty, s: string): number | null {
     if (!m) return null;
     const xp = parseLinear(m[1]);
     const yp = parseLinear(m[2]);
-    const T = (u: number, v: number) => [xp.u * u + xp.v * v, yp.u * u + yp.v * v];
+    const T = (u: number, v: number): [number, number] => [xp.u * u + xp.v * v, yp.u * u + yp.v * v];
     const J = Math.abs(jacobianNum(T, 0.2, 0.4));
     const pq = s.match(/R=\[0,([\d.]+)\]\\times\[0,([\d.]+)\]/);
     if (!pq) return null;

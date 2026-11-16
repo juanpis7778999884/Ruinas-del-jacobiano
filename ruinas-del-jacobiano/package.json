@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "verify:math": "tsx scripts/verifyMath.ts"
+    "verify:math": "tsx scripts/verifyMath.ts",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
     "katex": "^0.16.11",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/katex": "^0.16.7",
+    "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
