@@ -20,3 +20,21 @@ new Phaser.Game({
 });
 
 mountTouchUI();
+
+// Aviso de orientación: solo aparece en vertical y en pantallas táctiles.
+// Si el jugador decide seguir en vertical, se guarda solo en esta sesión (memoria).
+{
+  const hint = document.getElementById('rotate-hint');
+  const skip = document.getElementById('rotate-skip');
+  let dismissed = false;
+  const vertical = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+  const apply = () => {
+    if (hint) hint.hidden = dismissed || !vertical.matches;
+  };
+  skip?.addEventListener('click', () => {
+    dismissed = true;
+    apply();
+  });
+  vertical.addEventListener('change', apply);
+  apply();
+}

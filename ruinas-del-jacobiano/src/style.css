@@ -231,6 +231,45 @@ body.touch .math-keys {
   font-size: 0.95rem;
 }
 
+/* ───────── Aviso de orientación (solo en vertical, táctil) ───────── */
+#rotate-hint {
+  display: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate-hint:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5, 7, 20, 0.94);
+    text-align: center;
+  }
+}
+
+.rotate-card {
+  max-width: 420px;
+}
+
+.rotate-icon {
+  margin: 0 0 12px;
+  font-size: 3rem;
+}
+
+.rotate-text {
+  margin: 0 0 18px;
+  font-size: 1.2rem;
+  color: var(--gold);
+}
+
+#rotate-skip {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
 /* ───────── HUD y controles táctiles ───────── */
 #hud-buttons {
   position: fixed;
