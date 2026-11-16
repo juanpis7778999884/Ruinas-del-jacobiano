@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verify:math": "tsx scripts/verifyMath.ts",
-    "typecheck:scripts": "tsc -p tsconfig.scripts.json"
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json",
+    "test:parser": "tsx scripts/testParser.ts"
   },
   "dependencies": {
     "katex": "^0.16.11",

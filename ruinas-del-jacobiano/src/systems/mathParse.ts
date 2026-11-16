@@ -1,6 +1,7 @@
 /**
  * Parser seguro de respuestas matemáticas escritas por el jugador.
- * Acepta: 3.5  3,5  7/2  2pi  π/4  sqrt(2)  √2  e^2  (e^4-1)/2  -3  2*pi^2
+ * Acepta: 3.5  3,5  7/2  2pi  π/4  sqrt(2)  √2  sqrt2  e^2  e²  π²
+ *         (e^4-1)/2  -3  2*pi^2  abs(-3)  tan(0.5)  atan(1)
  * NO usa eval().
  */
 
@@ -12,6 +13,9 @@ const FUNCS: Record<string, (x: number) => number> = {
   ln: Math.log,
   sin: Math.sin,
   cos: Math.cos,
+  tan: Math.tan,
+  atan: Math.atan,
+  abs: Math.abs,
 };
 
 function tokenize(s: string): Tok[] | null {
@@ -125,12 +129,20 @@ class Parser {
       if (k.v === 'e') return Math.E;
       const f = FUNCS[k.v];
       if (!f) throw new Error('función desconocida');
-      if (!this.isOp('(')) throw new Error('falta (');
-      this.p++;
-      const a = this.expr();
-      if (!this.isOp(')')) throw new Error('falta )');
-      this.p++;
-      return f(a);
+      if (this.isOp('(')) {
+        this.p++;
+        const a = this.expr();
+        if (!this.isOp(')')) throw new Error('falta )');
+        this.p++;
+        return f(a);
+      }
+      // sqrt2, sqrt 2, abs3: argumento numérico sin paréntesis
+      const nx = this.t[this.p];
+      if (nx && nx.t === 'num') {
+        this.p++;
+        return f(nx.v);
+      }
+      throw new Error('falta (');
     }
     if (k.t === 'op' && k.v === '(') {
       const v = this.expr();
@@ -147,6 +159,8 @@ export function parseAnswer(input: string): number | null {
   if (!s) return null;
   s = s
     .replace(/π/g, 'pi')
+    .replace(/²/g, '^2')
+    .replace(/³/g, '^3')
     .replace(/√\s*(\d+(\.\d+)?)/g, 'sqrt($1)')
     .replace(/√/g, 'sqrt')
     .replace(/[−–—]/g, '-')

@@ -44,6 +44,7 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
                  placeholder="Tu respuesta (ej: 7/2, 3.5, 2pi, e^2)" />
           <button class="primary" data-role="submit">Responder</button>
         </div>
+        <div class="parse-echo" aria-live="polite"></div>
         <div class="feedback" aria-live="polite"></div>
         <div class="hints"></div>
         <div class="solution"></div>
@@ -61,6 +62,7 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
 
     const input = $<HTMLInputElement>('input');
     const feedback = $('.feedback');
+    const echo = $('.parse-echo');
     const hintsBox = $('.hints');
     const solution = $('.solution');
     const submitBtn = $<HTMLButtonElement>('[data-role="submit"]');
@@ -164,6 +166,13 @@ export function askQuestion(q: Question, opts: AskOptions): Promise<AskResult> {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submit();
     });
+
+    // Eco en vivo: muestra solo el valor que se entendió (nunca la respuesta correcta).
+    const updateEcho = () => {
+      const v = parseAnswer(input.value);
+      echo.textContent = v === null ? '' : `Entendí: ${fmt(v)}`;
+    };
+    input.addEventListener('input', updateEcho);
 
     if (opts.freeHint) showHint();
     setTimeout(() => input.focus(), 50);
