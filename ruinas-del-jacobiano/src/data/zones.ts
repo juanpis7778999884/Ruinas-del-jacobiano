@@ -148,7 +148,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
       { x: 4, y: 3, to: 'llanura', label: 'Llanura Rectangular', lockedMsg: '' },
       { x: 11, y: 3, to: 'valle', requires: 'llanura', label: 'Valle de las Regiones', lockedMsg: 'El portal del Valle está sellado. Vence al Guardián Rectángulo primero.' },
       { x: 18, y: 3, to: 'ciudad', requires: 'valle', label: 'Ciudad Polar', lockedMsg: 'El portal de Ciudad Polar está sellado. Vence al Centinela del Valle primero.' },
-      { x: 25, y: 3, to: 'templo', requires: 'ciudad', label: 'Templo del Jacobiano', lockedMsg: 'El Templo del Jacobiano solo abre con la Brújula Polar. Vence al Coloso Polar.' },
+      { x: 25, y: 3, to: 'templo', requires: 'ciudad', label: 'Templo del Jacobiano', lockedMsg: 'El Templo del Jacobiano está sellado. Vence al Coloso Polar en Ciudad Polar primero.' },
     ],
     enemies: [],
   },
