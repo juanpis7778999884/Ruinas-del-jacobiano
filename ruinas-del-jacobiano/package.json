@@ -11,7 +11,8 @@
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "test:parser": "tsx scripts/testParser.ts",
     "check:latex": "tsx scripts/checkLatex.ts",
-    "audit:variety": "tsx scripts/auditVariety.ts"
+    "audit:variety": "tsx scripts/auditVariety.ts",
+    "icons": "pwa-assets-generator"
   },
   "dependencies": {
     "katex": "^0.16.11",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/katex": "^0.16.7",
     "@types/node": "^26.6.6",
+    "@vite-pwa/assets-generator": "^0.2.6",
     "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
