@@ -47,6 +47,17 @@ const lin = (a: number, u: string, b: number, v: string): string => {
 /** bordes del disco de radio R en cartesianas (para la verificación numérica) */
 const diskLo = (R: number) => (x: number): number => -Math.sqrt(Math.max(0, R * R - x * x));
 const diskHi = (R: number) => (x: number): number => Math.sqrt(Math.max(0, R * R - x * x));
+/** exponente en LaTeX: si es 1 no se escribe (x^{1} -> x) */
+const ex = (e: number): string => (e === 1 ? '' : `^{${e}}`);
+/** potencia en LaTeX: si el exponente es 1 no se escribe (e^{1} -> e) */
+const pw = (base: string, e: number): string => (e === 1 ? base : `${base}^{${e}}`);
+/** potencia con factor: e^{1y} -> e^{y}, e^{2y} -> e^{2y} */
+const pwK = (base: string, k: number, body: string): string =>
+  k === 1 ? `${base}^{${body}}` : `${base}^{${k}${body}}`;
+/** fracción en LaTeX: si el denominador es 1 se omite (\frac{e-1}{1} -> e-1) */
+const fr = (num: string, den: number): string => (den === 1 ? num : `\\frac{${num}}{${den}}`);
+/** potencia en texto plano: x^1 -> x */
+const pwt = (base: string, e: number): string => (e === 1 ? base : `${base}^${e}`);
 
 function mk(
   topic: Topic,
@@ -90,15 +101,15 @@ function rect(d: Difficulty): Question {
       const ans = (Math.pow(a, m + 1) * Math.pow(b, n + 1)) / ((m + 1) * (n + 1));
       return mk(
         'rect', 2, 'Integrando un producto de potencias',
-        tex`\iint_R x^{${m}}y^{${n}}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
+        tex`\iint_R x${ex(m)}y${ex(n)}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
         ans,
         [
           'La función es producto de algo en x por algo en y y la región es un rectángulo: la integral se separa en dos integrales simples.',
-          `∫₀^${a} x^${m} dx = ${a}^${m + 1}/${m + 1}  y  ∫₀^${b} y^${n} dy = ${b}^${n + 1}/${n + 1}.`,
+          `∫₀^${a} ${pwt('x', m)} dx = ${a}^${m + 1}/${m + 1}  y  ∫₀^${b} ${pwt('y', n)} dy = ${b}^${n + 1}/${n + 1}.`,
         ],
         [
-          tex`\iint_R x^{${m}}y^{${n}}dA=\left(\int_0^{${a}}x^{${m}}dx\right)\left(\int_0^{${b}}y^{${n}}dy\right)`,
-          tex`=\frac{${a}^{${m + 1}}}{${m + 1}}\cdot\frac{${b}^{${n + 1}}}{${n + 1}}=${fmt(ans)}`,
+          tex`\iint_R x${ex(m)}y${ex(n)}dA=\left(\int_0^{${a}}x${ex(m)}dx\right)\left(\int_0^{${b}}y${ex(n)}dy\right)`,
+          tex`=${fr(`${a}^{${m + 1}}`, m + 1)}\cdot${fr(`${b}^{${n + 1}}`, n + 1)}=${fmt(ans)}`,
         ],
         () => integrate2D((x, y) => Math.pow(x, m) * Math.pow(y, n), 0, a, () => 0, () => b),
       );
@@ -107,15 +118,15 @@ function rect(d: Difficulty): Question {
     const ans = (c * Math.pow(a, m + 1) * Math.pow(b, n + 1)) / ((m + 1) * (n + 1));
     return mk(
       'rect', 2, 'Producto de potencias con factor',
-      tex`\iint_R ${co(c)}x^{${m}}y^{${n}}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
+      tex`\iint_R ${co(c)}x${ex(m)}y${ex(n)}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
       ans,
       [
         `El ${c} es una constante: sácalo de la integral y solo queda el producto de potencias.`,
-        `∫₀^${a} x^${m} dx = ${a}^${m + 1}/${m + 1}  y  ∫₀^${b} y^${n} dy = ${b}^${n + 1}/${n + 1}.`,
+        `∫₀^${a} ${pwt('x', m)} dx = ${a}^${m + 1}/${m + 1}  y  ∫₀^${b} ${pwt('y', n)} dy = ${b}^${n + 1}/${n + 1}.`,
       ],
       [
-        tex`\iint_R ${co(c)}x^{${m}}y^{${n}}dA=${c}\left(\int_0^{${a}}x^{${m}}dx\right)\left(\int_0^{${b}}y^{${n}}dy\right)`,
-        tex`=${c}\cdot\frac{${a}^{${m + 1}}}{${m + 1}}\cdot\frac{${b}^{${n + 1}}}{${n + 1}}=${fmt(ans)}`,
+        tex`\iint_R ${co(c)}x${ex(m)}y${ex(n)}dA=${c}\left(\int_0^{${a}}x${ex(m)}dx\right)\left(\int_0^{${b}}y${ex(n)}dy\right)`,
+        tex`=${c}\cdot${fr(`${a}^{${m + 1}}`, m + 1)}\cdot${fr(`${b}^{${n + 1}}`, n + 1)}=${fmt(ans)}`,
       ],
       () => integrate2D((x, y) => c * Math.pow(x, m) * Math.pow(y, n), 0, a, () => 0, () => b),
     );
@@ -140,19 +151,19 @@ function rect(d: Difficulty): Question {
     );
   }
   if (variante === 2) {
-    const k = ri(1, 2), a = ri(1, 3), b = ri(1, 3);
+    const k = ri(2, 3), a = ri(1, 3), b = ri(1, 3);
     const ans = ((a * a) / 2) * (Math.exp(k * b) - 1) / k;
     return mk(
       'rect', 3, 'Separando variables con exponencial de constante',
-      tex`\iint_R x\,e^{${k}y}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
+      tex`\iint_R x\,${pwK('e', k, 'y')}\,dA,\qquad R=[0,${a}]\times[0,${b}]`,
       ans,
       [
         'El integrando sigue siendo producto: (∫ x dx)(∫ eʏᵏ dy). La clave está en la segunda integral.',
-        `Sustituye u = ${k}y: te queda (e^{${k}·${b}} − 1)/${k}.`,
+        `Sustituye u = ${k === 1 ? 'y' : `${k}y`}: te queda (${pwt('e', k * b)} − 1)/${k}.`,
       ],
       [
-        tex`\iint_R x e^{${k}y}dA=\left(\int_0^{${a}}x\,dx\right)\left(\int_0^{${b}}e^{${k}y}dy\right)`,
-        tex`=\frac{${a}^2}{2}\cdot\frac{e^{${k * b}}-1}{${k}}=${fmt(ans)}`,
+        tex`\iint_R x ${pwK('e', k, 'y')}dA=\left(\int_0^{${a}}x\,dx\right)\left(\int_0^{${b}}${pwK('e', k, 'y')}dy\right)`,
+        tex`=\frac{${a}^2}{2}\cdot${fr(`${pw('e', k * b)}-1`, k)}=${fmt(ans)}`,
       ],
       () => integrate2D((x, y) => x * Math.exp(k * y), 0, a, () => 0, () => b),
     );
@@ -174,7 +185,7 @@ function rect(d: Difficulty): Question {
       'Valores útiles: ∫₀^π sin x dx = 2, ∫₀^{π/2} sin x dx = 1 y ∫₀^{π/6} cos y dy = 1/2.',
     ],
     [
-      tex`\iint_D ${co(c)}\sin(x)\cos(y)dA=${c}\left(\int_0^{${r.xv}}\sin x\,dx\right)\left(\int_0^{${r.yv}}\cos y\,dy\right)`,
+      tex`\iint_D ${co(c)}\sin(x)\cos(y)dA=${c}\left(\int_0^{${r.x}}\sin x\,dx\right)\left(\int_0^{${r.y}}\cos y\,dy\right)`,
       tex`=${c}\cdot${fmt(r.sin)}\cdot${fmt(r.cos)}=${fmt(ans)}`,
     ],
     () => integrate2D((x, y) => c * Math.sin(x) * Math.cos(y), 0, r.xv, () => 0, () => r.yv),
