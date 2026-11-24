@@ -1,95 +1,90 @@
-# AGENTS.md — Las Ruinas del Jacobiano
+# AGENTS.md — Ruinas del Jacobiano
 
-> opencode (y otras herramientas de agentes) leen este archivo automáticamente.
-> Léelo completo antes de tocar código.
+Este archivo se lee automáticamente antes de tocar código.
 
-## Qué es este proyecto
-Juego tipo **Zelda top-down con modo historia** para repasar **Cálculo Multivariable**
-(integrales dobles, Fubini, regiones tipo I/II, polares, Jacobiano, cambio de variables).
-Es un proyecto universitario para puntos extra en el parcial. **No es competitivo**:
-sin cronómetro, sin ranking, con guardado automático, pistas y soluciones paso a paso.
-Debe poder jugarse en cualquier lado: **web / PWA**, con controles táctiles en celular.
+## Qué es
 
-## Historia
-El reino de **Cartesia** se deforma porque **El Singular** quiere llevar todo a |J| = 0 (área cero).
-El jugador es un aprendiz de cartógrafo que recorre 4 regiones, vence a un guardián en cada una
-(jefe con fases, cada fase = un problema) y recupera 3 herramientas. Al final enfrenta a El Singular.
+Juego **2.5D isométrico** de exploración, acción y cálculo multivariable. El reino de Cartesia se deforma porque El Singular quiere llevar toda el área a |J| = 0. El jugador recorre cinco regiones, enciende runas, vence jefes con fases y recupera herramientas antes del enfrentamiento final.
+
+Es un proyecto educativo no competitivo: sin cronómetro, sin ranking, con guardado automático, pistas y soluciones paso a paso. Debe funcionar como web/PWA, con controles táctiles en celular.
 
 ## Stack
-- **Vite + TypeScript (strict)** · **Phaser 3** (arcade physics) · **KaTeX** (LaTeX en modales)
-- **vite-plugin-pwa** (instalable y offline) · despliegue estático en **Vercel**
-- Sin assets externos: las texturas se generan por código en `BootScene.ts`.
-- Guardado en `localStorage` (clave `ruinas-del-jacobiano-save-v1`).
+
+- Vite + TypeScript strict
+- Phaser 3
+- KaTeX para enunciados y soluciones
+- vite-plugin-pwa
+- Sin assets externos: todo el arte y el audio se generan por código
+- Guardado en `localStorage` (clave `ruinas-del-jacobiano-save-v1`, versión de datos 2 con migración desde 1)
 
 ## Comandos
+
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # tsc --noEmit && vite build  (DEBE pasar siempre)
+npm run dev
+npm run build
 npm run preview
+npm run verify:math
+npm run test:parser
+npm run check:latex
+npm run audit:variety
 ```
+
+`npm run build` debe pasar siempre.
 
 ## Mapa de archivos
-```
+
+```text
 src/
   main.ts                 arranque de Phaser + UI táctil
-  config.ts               constantes (tamaño, TILE, velocidad, clave de guardado)
-  style.css               modales, HUD, joystick
+  config.ts               constantes
+  iso/
+    isoConfig.ts          constantes de proyección y profundidad
+    isoMath.ts            proyección 2:1 y utilidades
+    isoTextures.ts        arte procedural (suelos, muros, personajes, VFX)
+    IsoScene.ts           escena principal: mundo, combate, IA, jefes, puzzles, UI
   data/
-    types.ts              ZoneId, ItemId
-    zones.ts              TODAS las zonas: mapas ASCII, runas, NPCs, portales, enemigos, jefes, recompensas
+    types.ts              identificadores y tipos compartidos
+    zones.ts              mapas, entidades, runas, cofres, jefes y objetos
+    story.ts              diálogos ramificados, misiones y recompensas
   scenes/
-    BootScene.ts          genera texturas por código → Menu
-    MenuScene.ts          menú (continuar / nueva / diario)
-    WorldScene.ts         escena genérica de zona: movimiento, combate, runas, jefe, portales, HUD, lente
+    BootScene.ts          construye texturas y entra al menú
+    MenuScene.ts          menú principal, créditos y acceso al diario
+    WorldScene.ts         reexporta IsoScene como escena "World"
   systems/
-    questions.ts          motor de preguntas (generadores aleatorios + pistas + solución en LaTeX)
-    mathParse.ts          parser seguro de respuestas ("7/2", "2pi", "e^2"); checkAnswer con tolerancia
-    SaveSystem.ts         guardado (objeto Save)
-    Controls.ts           teclado + joystick/botones táctiles (Controls.dir, Controls.consume)
-    Dialog.ts             caja de diálogo
+    SaveSystem.ts         Save.data + persistencia + migración
+    Controls.ts           teclado y táctil mediante acciones
+    Audio.ts              música/SFX WebAudio
+    questions.ts          generadores matemáticos verificados
+    mathParse.ts          parser seguro y checkAnswer
+    numeric.ts            integración y diferencias finitas
   ui/
-    QuestionModal.ts      modal DOM de preguntas (KaTeX, pistas, intentos)
+    Hud.ts                vida, resistencia, runas, jefe, minimapa, avisos
+    Dialogue.ts           diálogo con retratos y opciones
+    QuestionModal.ts      modal KaTeX
     Journal.ts            diario de fórmulas
+    Overlays.ts           inventario, mapa, misiones, pausa, muerte, créditos
 ```
 
-## Reglas de arquitectura (respétalas)
-1. **Contenido = datos.** Zonas, runas, NPCs, jefes y textos viven en `data/zones.ts`. No metas lógica de zona en `WorldScene`.
-2. **Las escenas no leen teclas de Phaser.** Usan `Controls.dir` y `Controls.consume('interact'|'attack'|...)`.
-3. **Los modales son DOM** (`QuestionModal`, `Journal`) y deben llamar `Controls.setEnabled(false)` al abrir y `true` al cerrar.
-4. **Todo problema** sale de `generateQuestion(topic, difficulty)` y trae: `statementTex`, `answer`, `tolerance`, `hints[]`, `solutionTex[]`.
-5. **Las respuestas se validan numéricamente** con `parseAnswer` + `checkAnswer` (nada de `eval`).
-6. Progreso persistente **solo** vía `Save.data` + `Save.save()`.
-7. TypeScript estricto: `npm run build` debe pasar antes de dar algo por terminado.
-8. Texto del juego en **español**. Tono amigable, nada punitivo.
+## Reglas de arquitectura
 
-## Cómo agregar cosas
-- **Nuevo tipo de problema:** escribe `function miTema(d: Difficulty): Question` en `questions.ts`, añade el `Topic` y regístralo en `GENERATORS` y `TOPIC_LABEL`. Verifica la respuesta con una integración numérica.
-- **Nueva mazmorra:** agrega un `ZoneId` en `data/types.ts`, una entrada en `ZONES`, un portal en el hub (`cartesia.exits`).
-- **Nuevo ítem:** `ItemId` en `types.ts`, entrada en `ITEMS` (zones.ts), efecto en `WorldScene` (como `fubini` en `attack()` o `polar` en `update()`).
+1. El contenido vive en `data/`. La escena no hardcodea textos de zonas, jefes ni preguntas.
+2. Las escenas no leen teclas de Phaser. Usan `Controls.dir` y `Controls.consume`.
+3. Los modales son DOM y deben desactivar controles al abrir y reactivarlos al cerrar.
+4. Toda pregunta sale de `generateQuestion(topic, difficulty)` y trae enunciado LaTeX, respuesta numérica, pistas y solución.
+5. Las respuestas se validan con `parseAnswer` + `checkAnswer`; nunca con `eval`.
+6. Progreso persistente solo mediante `Save.data` y `Save.save()`.
+7. Todo el texto del juego está en español.
+8. TypeScript strict: `npm run build` debe pasar antes de dar algo por terminado.
 
-## Estado actual (v0.1)
-Hecho: menú, hub + 4 mazmorras jugables, 5 temas de preguntas × 3 dificultades, runas, puerta que se abre al resolverlas,
-jefes por fases (último con 5 fases), combate básico con slimes, 3 ítems con efecto, lente (grid deformado),
-diario de fórmulas, guardado automático, PWA, controles táctiles.
+## Verificación matemática
 
-**Verificación matemática:** `scripts/verifyMath.ts` verifica numéricamente (cuadratura 2D y diferencias finitas para el Jacobiano)
-todas las respuestas generadas. Resultado: 900/900 OK (100 %) en 5 temas × 3 dificultades × 60 muestras.
-Comando: `npm run verify:math`.
+`scripts/verifyMath.ts` comprueba numéricamente cada respuesta con cuadratura 2D o diferencias finitas. Estado actual: 15000/15000 respuestas y soluciones OK en 5 temas × 3 dificultades.
 
-## Roadmap sugerido (en este orden)
-1. **Probar y pulir** en celular real (tamaños de botones, escala, rendimiento).
-2. **Pixel art real** (Kenney.nl / itch.io, licencias libres) en vez de texturas generadas; animación de caminar.
-3. **Puzzles de mazmorra con mecánica matemática**: "plantea los límites" arrastrando `g₁(x)`, `g₂(x)`; sala del Jacobiano donde el piso se deforma según |J|.
-4. **Música y sonidos** (libres de derechos).
-5. **Más preguntas**: integrales triples básicas, integrales sobre regiones con dos fronteras, áreas y volúmenes.
-6. **Mapas en Tiled** (JSON) si los mapas ASCII se quedan cortos.
-7. **Guardado en la nube** con Supabase (opcional).
-8. ✅ **Pruebas**: script que genera 1000 preguntas por tema/dificultad y verifica cada respuesta con integración numérica (`scripts/verifyMath.ts`, `npm run verify:math`).
-9. Tutorial del primer minuto más claro; accesibilidad (tamaño de fuente, daltonismo).
+No agregar preguntas cuya respuesta no esté verificada matemáticamente.
 
-## Cosas a NO hacer
-- No reescribir el proyecto desde cero ni cambiar de motor sin motivo.
-- No agregar ranking, tiempos o competencia.
-- No romper el guardado: si cambias la forma de `SaveData`, mantén compatibilidad con los defaults de `SaveSystem`.
-- No dejar preguntas cuya respuesta no esté verificada matemáticamente.
+## Estado actual
+
+- Proyecto convertido de top-down a 2.5D isométrico.
+- Combate, jefes, puzzles, narrativa, HUD, paneles,audio y PWA integrados.
+- `WorldScene` es la escena isométrica principal.

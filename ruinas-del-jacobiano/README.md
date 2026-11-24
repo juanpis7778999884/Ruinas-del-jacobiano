@@ -1,31 +1,76 @@
-# Las Ruinas del Jacobiano
+# Ruinas del Jacobiano
 
-Aventura estilo Zelda (top-down, modo historia) para repasar integrales dobles, Fubini,
-regiones tipo I/II, coordenadas polares, Jacobiano y cambio de variables.
-Corre en el navegador y se instala como PWA (funciona offline y en celular).
+Aventura **2.5D isométrica** de exploración, acción y cálculo. Recorre cinco regiones de un reino que se deforma, derrota guardianes con fases, descifra runas y recupera las herramientas de los antiguos cartógrafos antes de que El Singular reduzca toda el área a cero.
 
-## Correr en local
+Incluye:
+
+- Cámara y proyectado isométrico 2:1 con profundidad, niebla, braseros, partículas y sombras.
+- Combate con combo ligero, golpe pesado, esquiva, defensa, resistencia, espectáculo de impactos y IA de enemigos.
+- Cinco zonas conectadas por portales: Cartesia, Llanura Rectangular, Valle de las Regiones, Ciudad Polar y Templo del Jacobiano.
+- Jefes con fases, patrones de ataque distintos y escudo matemático: solo se abre al resolver la pregunta de la fase.
+- Runas, cofres, tablas de lore, santuarios, mecanismos de interruptores y puertas selladas.
+- Diálogo ramificado con retratos, misiones, inventario, equipo, mapa, diario de fórmulas, guardado y ajustes.
+- Música y efectos sintetizados en WebAudio; arte 100 % generado por código, sin recursos externos.
+- Modales de preguntas con KaTeX, pistas, solución paso a paso y validación numérica segura.
+- PWA instalable, controles táctiles y guardado automático en `localStorage`.
+
+## Ejecutar
+
 ```bash
 npm install
 npm run dev
 ```
-Abre http://localhost:5173
+
+Abre `http://localhost:5173`.
 
 ## Controles
+
 | Acción | Teclado | Celular |
 |---|---|---|
 | Mover | WASD / flechas | Joystick izquierdo |
 | Interactuar / avanzar diálogo | E, Enter | Botón A |
 | Atacar | Espacio, K | Botón B |
-| Diario de fórmulas | J | Botón 📖 |
-| Lente del Jacobiano | Q | Botón 🔍 |
-| Menú | Esc | Botón ☰ Menú |
+| Golpe pesado | H | Botón C |
+| Esquivar | Shift | Botón ↷ |
+| Defender | G | Botón ◇ |
+| Diario de fórmulas | J | Botón ∫ |
+| Lente del Jacobiano | Q | Botón ◈ |
+| Inventario | I, Tab | Botón 🎒 |
+| Mapa | M | Botón 🗺 |
+| Misiones | L | Botón 📜 |
+| Beber elixir | R | Botón ✚ |
+| Pausa / ajustes | Esc | Botón ☰ |
 
-## Desplegar en Vercel
-1. Sube el proyecto a GitHub.
-2. En vercel.com → *Add New Project* → importa el repo.
-3. Framework: **Vite** (lo detecta solo). Build: `npm run build`. Output: `dist`.
-4. Deploy. Comparte el link: en el celular se puede "Agregar a pantalla de inicio".
+## Progresión
 
-## Usarlo con opencode
-Abre la carpeta en opencode: lee `AGENTS.md` automáticamente. Si cambias de IA, usa `PROMPT_UNIVERSAL.md`.
+1. Habla con la Anciana en Cartesia y toma el portal de la Llanura.
+2. Enciende las tres runas de cada región para abrir el sello del jefe.
+3. Resuelve la pregunta de cada fase para romper el escudo y ataca mientras el jefe está aturdido.
+4. Recupera la Cuchilla de Fubini, la Brújula Polar y el Lente del Jacobiano.
+5. Busca los tres fragmentos de la reliquia y entra al Templo para enfrentar a El Singular.
+
+No hay cronómetro, ranking ni castigos permanentes: equivocarse muestra la solución y permite volver a intentarlo.
+
+## Verificación
+
+```bash
+npm run build        # tsc --noEmit + vite build
+npm run verify:math  # 15000 respuestas verificadas numéricamente
+npm run test:parser  # parser de respuestas
+npm run check:latex  # renderizado KaTeX de enunciados y soluciones
+npm run audit:variety
+```
+
+Estado verificado: `15000/15000` respuestas correctas, más de `32000` líneas de solución LaTeX renderizadas, `29/29` pruebas del parser y build de producción exitoso.
+
+## Despliegue
+
+El proyecto es estático. En Vercel: framework **Vite**, comando `npm run build`, salida `dist`. También puedes servir `dist` con cualquier host estático. El service worker y el manifiesto se generan con `vite-plugin-pwa`.
+
+## Estructura
+
+- `src/iso/`: proyección, texturas procedurales y escena isométrica principal.
+- `src/data/`: zonas, mapas, objetos, jefes, narrativa y misiones.
+- `src/systems/`: guardado, controles, audio y motor matemático.
+- `src/ui/`: HUD, diálogo, preguntas, diario y paneles.
+- `src/scenes/`: arranque y menú.

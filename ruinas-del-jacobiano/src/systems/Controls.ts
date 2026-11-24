@@ -1,17 +1,27 @@
 /**
- * Controles unificados: teclado + joystick/botones táctiles (DOM).
- * Las escenas NO leen teclas de Phaser: usan Controls.dir y Controls.consume(...).
+ * Controles unificados: teclado + joystick y botones táctiles.
+ * Las escenas nunca leen teclas de Phaser directamente.
  */
-
-export type Action = 'interact' | 'attack' | 'journal' | 'lens' | 'menu';
+export type Action =
+  | 'interact' | 'attack' | 'heavy' | 'dodge' | 'guard'
+  | 'journal' | 'lens' | 'inventory' | 'map' | 'quests' | 'heal' | 'menu';
 
 const KEYMAP: Record<string, Action> = {
   KeyE: 'interact',
   Enter: 'interact',
   Space: 'attack',
   KeyK: 'attack',
+  KeyH: 'heavy',
+  ShiftLeft: 'dodge',
+  ShiftRight: 'dodge',
+  KeyG: 'guard',
   KeyJ: 'journal',
   KeyQ: 'lens',
+  KeyI: 'inventory',
+  Tab: 'inventory',
+  KeyM: 'map',
+  KeyL: 'quests',
+  KeyR: 'heal',
   Escape: 'menu',
 };
 
@@ -41,22 +51,26 @@ class ControlsImpl {
       this.held.add(e.code);
       const a = KEYMAP[e.code];
       if (a && !e.repeat) this.queue.add(a);
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-        e.preventDefault();
-      }
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     } else {
       this.held.delete(e.code);
     }
   }
 
-  /** Simula una acción (botones táctiles / HUD). */
   press(a: Action) {
     if (this.enabled) this.queue.add(a);
   }
 
-  /** true si la acción se presionó desde la última consulta (y la gasta). */
   consume(a: Action): boolean {
     return this.queue.delete(a);
+  }
+
+  clear() {
+    this.queue.clear();
+  }
+
+  isDown(code: string): boolean {
+    return this.enabled && this.held.has(code);
   }
 
   setEnabled(v: boolean) {
@@ -84,7 +98,7 @@ class ControlsImpl {
 
 export const Controls = new ControlsImpl();
 
-/** Crea el HUD de botones y, en pantallas táctiles, el joystick y los botones A/B. */
+/** Botones táctiles y HUD de acceso rápido. */
 export function mountTouchUI() {
   const coarse = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   if (coarse) document.body.classList.add('touch');
@@ -92,9 +106,13 @@ export function mountTouchUI() {
   const bar = document.createElement('div');
   bar.id = 'hud-buttons';
   bar.innerHTML = `
-    <button data-act="journal" aria-label="Diario">📖 Diario</button>
-    <button data-act="lens" aria-label="Lente">🔍 Lente</button>
-    <button data-act="menu" aria-label="Menú">☰ Menú</button>`;
+    <button data-act="inventory" aria-label="Inventario">🎒</button>
+    <button data-act="map" aria-label="Mapa">🗺</button>
+    <button data-act="quests" aria-label="Misiones">📜</button>
+    <button data-act="journal" aria-label="Fórmulas">∫</button>
+    <button data-act="lens" aria-label="Lente">◈</button>
+    <button data-act="heal" aria-label="Beber elixir">✚</button>
+    <button data-act="menu" aria-label="Pausa">☰</button>`;
   document.body.appendChild(bar);
   bar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.addEventListener('pointerdown', (e) => {
@@ -103,7 +121,6 @@ export function mountTouchUI() {
     });
   });
 
-  // Joystick
   const joy = document.createElement('div');
   joy.id = 'joystick';
   joy.innerHTML = '<div class="knob"></div>';
@@ -118,10 +135,7 @@ export function mountTouchUI() {
     let dx = (e.clientX - cx) / (r.width / 2);
     let dy = (e.clientY - cy) / (r.height / 2);
     const len = Math.hypot(dx, dy);
-    if (len > 1) {
-      dx /= len;
-      dy /= len;
-    }
+    if (len > 1) { dx /= len; dy /= len; }
     knob.style.transform = `translate(${dx * 38}px, ${dy * 38}px)`;
     Controls.touchDir = len < 0.2 ? { x: 0, y: 0 } : { x: dx, y: dy };
   };
@@ -135,16 +149,16 @@ export function mountTouchUI() {
     joy.setPointerCapture(e.pointerId);
     move(e);
   });
-  joy.addEventListener('pointermove', (e) => {
-    if (active) move(e);
-  });
+  joy.addEventListener('pointermove', (e) => { if (active) move(e); });
   joy.addEventListener('pointerup', end);
   joy.addEventListener('pointercancel', end);
 
-  // Botones A (interactuar) / B (atacar)
   const pad = document.createElement('div');
   pad.id = 'actionpad';
   pad.innerHTML = `
+    <button data-act="dodge" class="d">↷</button>
+    <button data-act="guard" class="g">◇</button>
+    <button data-act="heavy" class="c">C</button>
     <button data-act="attack" class="b">B</button>
     <button data-act="interact" class="a">A</button>`;
   document.body.appendChild(pad);
