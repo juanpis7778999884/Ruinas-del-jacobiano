@@ -16,6 +16,11 @@ import {
   charAt,
   isSolidChar,
 } from '../data/zones';
+import { createMaterials, disposeMaterials } from '../three/materials';
+import type { MaterialSet } from '../three/materials';
+import { Stage, sceneFadeIn, sceneFadeOut } from '../three/stage';
+import type { WorldSnapshot } from '../three/types';
+import { World3D } from '../three/World3D';
 import { Audio } from '../systems/Audio';
 import { Controls } from '../systems/Controls';
 import { generateQuestion, Question } from '../systems/questions';
@@ -117,6 +122,7 @@ interface Projectile {
   life: number;
   damage: number;
   home: boolean;
+  color: number;
 }
 
 interface PlayerState {
@@ -191,6 +197,9 @@ export class IsoScene extends Phaser.Scene {
   private cameraReady = false;
   private waterTiles: { img: Phaser.GameObjects.Image; phase: number }[] = [];
   private foliage: Phaser.GameObjects.Image[] = [];
+  private stage: Stage | null = null;
+  private world3D: World3D | null = null;
+  private materials: MaterialSet | null = null;
   private readonly originX = 800;
   private readonly originY = 70;
 
@@ -241,9 +250,11 @@ export class IsoScene extends Phaser.Scene {
     this.createAtmosphere();
     this.createLensGrid();
     this.configureCamera();
+    this.setupWorld3D();
 
     window.addEventListener('game-quit-menu', this.handleQuitMenuEvent);
     window.addEventListener('game-lens', this.handleLensEvent);
+    window.addEventListener('game-quality-change', this.handleQualityEvent);
     window.addEventListener('resize', this.handleResize);
     window.addEventListener('orientationchange', this.handleResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
@@ -293,6 +304,104 @@ export class IsoScene extends Phaser.Scene {
       cam.fadeIn(320, 8, 8, 20);
       this.cameraReady = true;
     }
+  }
+
+  private setupWorld3D() {
+    try {
+      const container = document.getElementById('game') ?? document.body;
+      this.stage = new Stage(container, Save.data.settings.quality, 2);
+      this.materials = createMaterials();
+      this.world3D = new World3D(this.stage, this.zone, this.zoneId, this.materials);
+      this.stage.resize(this.game.canvas);
+      this.updateWorld3D(this.time.now, 0);
+      this.game.canvas.style.visibility = 'hidden';
+      void sceneFadeIn(320);
+    } catch (error) {
+      console.warn('Renderizador 3D no disponible; se mantiene la escena 2D.', error);
+      this.disposeWorld3D();
+      this.game.canvas.style.visibility = '';
+      void sceneFadeIn(320);
+    }
+  }
+
+  private disposeWorld3D() {
+    this.world3D?.dispose();
+    this.world3D = null;
+    if (this.materials) disposeMaterials(this.materials);
+    this.materials = null;
+    this.stage?.dispose();
+    this.stage = null;
+  }
+
+  private updateWorld3D(time: number, delta: number) {
+    if (!this.world3D || !this.stage) return;
+    this.world3D.sync(this.worldSnapshot(time));
+    this.world3D.update(time, delta);
+    this.stage.render();
+  }
+
+  private worldSnapshot(time: number): WorldSnapshot {
+    const p = this.player;
+    const attacking = time >= p.attackStart && time <= p.attackStart + p.attackDuration;
+    const switchStates: Record<string, boolean> = {};
+    this.zone.mechanisms.forEach((mech) => {
+      mech.switches.forEach((sw) => {
+        switchStates[sw.id] = !!Save.data.mechanisms[mech.id] || (this.mechProgress[mech.id] ?? []).includes(sw.id);
+      });
+    });
+    const gateOpen: Record<string, boolean> = {};
+    this.gates.forEach((gate, keyName) => {
+      gateOpen[keyName] = gate.type === 'D'
+        ? this.runesOpen
+        : !!gate.mechanism && !!Save.data.mechanisms[gate.mechanism.id];
+    });
+    const boss = this.boss;
+    return {
+      time,
+      zoneId: this.zoneId,
+      player: {
+        x: p.x,
+        y: p.y,
+        speed: Math.hypot(p.velX, p.velY),
+        facingX: p.facingX,
+        facingY: p.facingY,
+        pose: p.pose,
+        hurt: time < p.hurtUntil,
+        dodge: time < p.dodgeUntil,
+        guard: time < p.guardUntil,
+        action: attacking ? 'attack' : '',
+        actionProgress: attacking ? clamp((time - p.attackStart) / Math.max(1, p.attackDuration), 0, 1) : 0,
+      },
+      enemies: this.enemies.map((e) => ({
+        id: e.id,
+        kind: e.kind,
+        x: e.x,
+        y: e.y,
+        facingX: e.facingX,
+        facingY: e.facingY,
+        speed: e.dead ? 0 : e.state === 'chase' ? e.speed : e.state === 'idle' ? 0.25 : 0,
+        state: e.state,
+        hurt: time < e.flashUntil,
+        dead: e.dead,
+      })),
+      boss: boss ? {
+        kind: boss.def.kind,
+        x: boss.x,
+        y: boss.y,
+        phase: boss.phaseIndex,
+        state: boss.state,
+        dead: boss.dead,
+        hurt: time < boss.flashUntil,
+      } : null,
+      npcs: this.zone.npcs.map((npc) => ({ id: npc.id, x: npc.x, y: npc.y })),
+      projectiles: this.projectiles.map((pr) => ({ x: pr.x, y: pr.y, color: pr.color, home: pr.home })),
+      solvedRunes: { ...Save.data.solvedRunes },
+      openedChests: { ...Save.data.openedChests },
+      mechanisms: { ...Save.data.mechanisms },
+      switchStates,
+      gateOpen,
+      lens: this.lensOn,
+    };
   }
 
   private buildMap() {
@@ -757,6 +866,7 @@ export class IsoScene extends Phaser.Scene {
     const dt = Math.min(delta / 1000, 0.05);
     Save.data.playtime += dt;
     this.updateAmbient(time);
+    this.updateWorld3D(time, delta);
     if (this.isBusy()) {
       if (this.player) {
         this.player.velX = 0;
@@ -813,7 +923,9 @@ export class IsoScene extends Phaser.Scene {
   }
 
   private shakeCamera(duration: number, intensity: number) {
-    if (Save.data.settings.shake) this.cameras.main.shake(duration, intensity);
+    if (!Save.data.settings.shake) return;
+    this.cameras.main.shake(duration, intensity);
+    this.world3D?.shake(clamp(intensity * 60, 0.05, 0.4));
   }
 
   private isBusy(): boolean {
@@ -978,11 +1090,13 @@ export class IsoScene extends Phaser.Scene {
     const sx = p.x + p.facingX * 0.55;
     const sy = p.y + p.facingY * 0.55;
     const pos = this.screenFor(sx, sy);
+    const color = Save.data.equipped.weapon === 'fubini' ? 0x8dffd8 : 0xffffff;
+    this.world3D?.slash(p.x, p.y, heavy, p.facingX, p.facingY, color);
     const arc = this.add.image(pos.x, pos.y - 12, 'slash_arc')
       .setOrigin(0.5)
       .setRotation(angle)
       .setScale(heavy ? 1.5 : 1)
-      .setTint(Save.data.equipped.weapon === 'fubini' ? 0x8dffd8 : 0xffffff)
+      .setTint(color)
       .setDepth(DEPTH_LIGHT);
     this.tweens.add({
       targets: arc,
@@ -1135,6 +1249,7 @@ export class IsoScene extends Phaser.Scene {
   }
 
   private telegraph(x: number, y: number, radius: number, color = 0xff6b6b) {
+    this.world3D?.telegraph(x, y, radius, color);
     const p = this.screenFor(x, y);
     const ring = this.add.image(p.x, p.y, 'magic_ring')
       .setTint(color)
@@ -1332,6 +1447,7 @@ export class IsoScene extends Phaser.Scene {
       life: 2.6,
       damage,
       home,
+      color: tint,
     });
   }
 
@@ -1520,6 +1636,7 @@ export class IsoScene extends Phaser.Scene {
     Save.data.discovered[exit.to] = true;
     Save.save();
     Audio.play('portal');
+    void sceneFadeOut(260);
     this.cameras.main.fadeOut(260, 8, 8, 20);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.restart({ zone: exit.to, spawn });
@@ -1616,6 +1733,7 @@ export class IsoScene extends Phaser.Scene {
     }
     if (!Save.data.flags[`boss_intro_${this.zoneId}`]) {
       Save.setFlag(`boss_intro_${this.zoneId}`);
+      this.world3D?.cinematic(b.x, b.y, 1800);
       await showLines(b.def!.introLines, b.def!.name, 'sage');
     }
     const q = generateQuestion(phase.topic, phase.difficulty);
@@ -1634,6 +1752,7 @@ export class IsoScene extends Phaser.Scene {
   }
 
   private burst(x: number, y: number, tint: number, count: number) {
+    this.world3D?.burst(x, y, tint, count);
     const p = this.screenFor(x, y);
     const emitter = this.add.particles(p.x, p.y, 'iso_dot', {
       speed: { min: 45, max: 160 },
@@ -1700,8 +1819,22 @@ export class IsoScene extends Phaser.Scene {
     Save.data.position[this.zoneId] = { x: this.player.x, y: this.player.y };
     Save.save();
     this.active = false;
+    void sceneFadeOut(240);
     this.cameras.main.fadeOut(240, 8, 8, 20);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Menu'));
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('Menu');
+      void sceneFadeIn(320);
+    });
+  };
+
+  private readonly handleQualityEvent = () => {
+    if (!this.active) return;
+    const spawn = { x: this.player.x, y: this.player.y };
+    Save.data.position[this.zoneId] = spawn;
+    Save.save();
+    this.active = false;
+    void sceneFadeOut(220);
+    this.scene.restart({ zone: this.zoneId, spawn });
   };
 
   private readonly handleLensEvent = () => {
@@ -1709,15 +1842,20 @@ export class IsoScene extends Phaser.Scene {
   };
 
   private readonly handleResize = () => {
-    if (this.active && this.player) this.configureCamera();
+    if (!this.active || !this.player) return;
+    this.configureCamera();
+    this.stage?.resize(this.game.canvas);
   };
 
   private cleanup() {
     this.active = false;
     window.removeEventListener('game-quit-menu', this.handleQuitMenuEvent);
     window.removeEventListener('game-lens', this.handleLensEvent);
+    window.removeEventListener('game-quality-change', this.handleQualityEvent);
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('orientationchange', this.handleResize);
+    this.disposeWorld3D();
+    this.game.canvas.style.visibility = '';
     document.body.classList.remove('playing');
     hideHud();
     setPrompt('');

@@ -2,6 +2,8 @@ import { SAVE_KEY } from '../config';
 import { ItemId, QuestId, RelicId, ZoneId } from '../data/types';
 import type { KeyBindings } from './actions';
 
+export type GraphicsQuality = 'auto' | 'high' | 'low';
+
 export interface SaveData {
   version: 2;
   hearts: number;
@@ -22,7 +24,7 @@ export interface SaveData {
   mechanisms: Record<string, boolean>;
   quests: Record<QuestId, { progress: number; done: boolean }>;
   discovered: Partial<Record<ZoneId, boolean>>;
-  settings: { music: number; sfx: number; typewriter: boolean; shake: boolean; keymap?: Partial<KeyBindings> };
+  settings: { music: number; sfx: number; typewriter: boolean; shake: boolean; quality: GraphicsQuality; keymap?: Partial<KeyBindings> };
   playtime: number;
 }
 
@@ -59,7 +61,7 @@ export const defaults = (): SaveData => ({
     archivo_prohibido: { progress: 0, done: false },
   },
   discovered: { cartesia: true },
-  settings: { music: 0.55, sfx: 0.7, typewriter: true, shake: true, keymap: {} },
+  settings: { music: 0.55, sfx: 0.7, typewriter: true, shake: true, quality: 'auto', keymap: {} },
   playtime: 0,
 });
 
@@ -103,6 +105,9 @@ class SaveSystemImpl {
         settings: {
           ...base.settings,
           ...(parsed.settings ?? {}),
+          quality: parsed.settings?.quality === 'high' || parsed.settings?.quality === 'low' || parsed.settings?.quality === 'auto'
+            ? parsed.settings.quality
+            : base.settings.quality,
           keymap: { ...(base.settings.keymap ?? {}), ...(parsed.settings?.keymap ?? {}) },
         },
         quests: { ...base.quests, ...(parsed.quests ?? {}) },

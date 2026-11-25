@@ -4,14 +4,15 @@ Este archivo se lee automáticamente antes de tocar código.
 
 ## Qué es
 
-Juego **2.5D isométrico** de exploración, acción y cálculo multivariable. El reino de Cartesia se deforma porque El Singular quiere llevar toda el área a |J| = 0. El jugador recorre cinco regiones, enciende runas, vence jefes con fases y recupera herramientas antes del enfrentamiento final.
+Juego **3D estilo PlayStation 2** de exploración, acción y cálculo multivariable. El reino de Cartesia se deforma porque El Singular quiere llevar toda el área a |J| = 0. El jugador recorre cinco regiones, enciende runas, vence jefes con fases y recupera herramientas antes del enfrentamiento final.
 
 Es un proyecto educativo no competitivo: sin cronómetro, sin ranking, con guardado automático, pistas y soluciones paso a paso. Debe funcionar como web/PWA, con controles táctiles en celular.
 
 ## Stack
 
 - Vite + TypeScript strict
-- Phaser 3
+- Phaser 3 para escena, entrada y HUD
+- Three.js para el mundo tridimensional real
 - KaTeX para enunciados y soluciones
 - vite-plugin-pwa
 - Sin assets externos: todo el arte y el audio se generan por código
@@ -43,6 +44,12 @@ src/
     isoMath.ts            proyección 2:1 y utilidades
     isoTextures.ts        arte procedural (suelos, muros, personajes, VFX)
     IsoScene.ts           escena principal: mundo, combate, IA, jefes, puzzles, UI
+  three/
+    stage.ts              renderer WebGL, cámara, luces, atmósfera y transiciones
+    World3D.ts            terreno, props, entidades y efectos 3D sincronizados con IsoScene
+    rig.ts                esqueletos y animaciones procedurales de personajes
+    materials.ts          materiales y texturas procedurales
+    types.ts              snapshots compartidos entre la lógica y el renderizador
   data/
     types.ts              identificadores y tipos compartidos
     zones.ts              mapas, entidades, runas, cofres, jefes y objetos
@@ -85,6 +92,6 @@ No agregar preguntas cuya respuesta no esté verificada matemáticamente.
 
 ## Estado actual
 
-- Proyecto convertido de top-down a 2.5D isométrico.
-- Combate, jefes, puzzles, narrativa, HUD, paneles, audio, reasignación de teclas y PWA integrados.
-- `WorldScene` es la escena isométrica principal.
+- Proyecto convertido de top-down a 2.5D isométrico y después a mundo 3D real con Three.js.
+- Combate, jefes, puzzles, narrativa, HUD, paneles, audio, reasignación de teclas, calidad gráfica y PWA integrados.
+- `WorldScene` es la escena principal; `IsoScene` conserva la lógica y sincroniza el renderizador 3D de `src/three/`.

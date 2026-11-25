@@ -72,6 +72,20 @@ button.primary, .primary {
   box-shadow: 0 0 0 1px rgba(141, 255, 216, 0.08), 0 30px 90px rgba(0, 0, 0, 0.75);
 }
 
+.three-canvas {
+  display: block;
+  image-rendering: auto;
+}
+
+#scene-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0;
+  background: #05060f;
+}
+
 #modal-root {
   position: fixed;
   inset: 0;
@@ -595,6 +609,14 @@ body.touch.playing #actionpad {
 .settings label { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
 .settings input[type="range"] { flex: 1; accent-color: var(--mint); }
 .settings input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--mint); }
+.settings select {
+  min-width: 150px;
+  padding: 8px 10px;
+  border: 1px solid rgba(141, 255, 216, 0.35);
+  border-radius: 10px;
+  background: rgba(5, 8, 20, 0.9);
+  color: var(--ink);
+}
 .keymap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; margin: 14px 0; }
 .keymap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(6, 8, 22, 0.55); font-size: 13px; }
 .keymap-row button { min-width: 96px; padding: 6px 10px; font-size: 12px; color: var(--mint); border-color: rgba(141,255,216,0.35); }

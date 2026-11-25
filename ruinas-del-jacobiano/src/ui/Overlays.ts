@@ -164,6 +164,13 @@ function pauseHtml(): string {
       <label>Efectos <input type="range" id="set-sfx" min="0" max="1" step="0.05" value="${s.sfx}"></label>
       <label><input type="checkbox" id="set-type" ${s.typewriter ? 'checked' : ''}> Texto progresivo</label>
       <label><input type="checkbox" id="set-shake" ${s.shake ? 'checked' : ''}> Sacudida de cámara</label>
+      <label>Calidad 3D
+        <select id="set-quality">
+          <option value="auto" ${s.quality === 'auto' ? 'selected' : ''}>Automática</option>
+          <option value="high" ${s.quality === 'high' ? 'selected' : ''}>Alta</option>
+          <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Ligera</option>
+        </select>
+      </label>
     </div>
     <div class="panel-actions">
       <button data-panel="controls">Controles y ayuda</button>
@@ -304,6 +311,18 @@ export function openPanel(kind: PanelKind, ctx: PanelContext) {
     if (el.id === 'set-sfx') { Save.data.settings.sfx = Number(el.value); Audio.refreshVolumes(); Save.save(); }
     if (el.id === 'set-type') { Save.data.settings.typewriter = el.checked; Save.save(); }
     if (el.id === 'set-shake') { Save.data.settings.shake = el.checked; Save.save(); }
+  });
+
+  overlay.addEventListener('change', (e) => {
+    const el = e.target as HTMLSelectElement;
+    if (el.id !== 'set-quality') return;
+    const value = el.value;
+    if (value !== 'auto' && value !== 'high' && value !== 'low') return;
+    Save.data.settings.quality = value;
+    Save.save();
+    Audio.play('ui');
+    closePanel();
+    window.dispatchEvent(new CustomEvent('game-quality-change'));
   });
 
   overlay.addEventListener('pointerdown', (e) => {

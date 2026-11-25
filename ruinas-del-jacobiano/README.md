@@ -1,10 +1,10 @@
 # Ruinas del Jacobiano
 
-Aventura **2.5D isométrica** de exploración, acción y cálculo. Recorre cinco regiones de un reino que se deforma, derrota guardianes con fases, descifra runas y recupera las herramientas de los antiguos cartógrafos antes de que El Singular reduzca toda el área a cero.
+Aventura **3D estilo PlayStation 2** de exploración, acción y cálculo. Recorre cinco regiones de un reino que se deforma, derrota guardianes con fases, descifra runas y recupera las herramientas de los antiguos cartógrafos antes de que El Singular reduzca toda el área a cero.
 
 Incluye:
 
-- Cámara y proyectado isométrico 2:1 con profundidad, niebla, braseros, partículas y sombras.
+- Mundo tridimensional real con geometría procedural, texturas generadas por código, cámara perspectiva, niebla, braseros, partículas y sombras.
 - Combate con combo ligero, golpe pesado, esquiva, defensa, resistencia, espectáculo de impactos y IA de enemigos.
 - Cinco zonas conectadas por portales: Cartesia, Llanura Rectangular, Valle de las Regiones, Ciudad Polar y Templo del Jacobiano.
 - Jefes con fases, patrones de ataque distintos y escudo matemático: solo se abre al resolver la pregunta de la fase.
@@ -71,7 +71,8 @@ El proyecto es estático. En Vercel: framework **Vite**, comando `npm run build`
 
 ## Estructura
 
-- `src/iso/`: proyección, texturas procedurales y escena isométrica principal.
+- `src/iso/`: escena principal, lógica de juego, colisión y texturas de respaldo.
+- `src/three/`: renderizador 3D, materiales, esqueletos de personajes, escenarios y efectos.
 - `src/data/`: zonas, mapas, objetos, jefes, narrativa y misiones.
 - `src/systems/`: guardado, controles, audio y motor matemático.
 - `src/ui/`: HUD, diálogo, preguntas, diario y paneles.
