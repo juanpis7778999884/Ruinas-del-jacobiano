@@ -14,6 +14,8 @@ interface Entry {
   fn: () => void;
   text?: Phaser.GameObjects.Text;
   hintText?: Phaser.GameObjects.Text;
+  panel?: Phaser.GameObjects.Rectangle;
+  mark?: Phaser.GameObjects.Rectangle;
 }
 
 export class MenuScene extends Phaser.Scene {
@@ -44,20 +46,22 @@ export class MenuScene extends Phaser.Scene {
     const title = this.add.text(GAME_W / 2, 96, 'RUINAS DEL JACOBIANO', {
       fontFamily: 'Georgia, serif',
       fontSize: '54px',
-      color: '#ffd166',
+      color: '#e8c778',
       fontStyle: 'bold',
       letterSpacing: 4,
     }).setOrigin(0.5);
     title.setShadow(0, 6, '#05060f', 16, false, true);
-    this.add.text(GAME_W / 2, 142, 'Una aventura isométrica de exploración, acción y cálculo', {
+    this.add.text(GAME_W / 2, 142, 'Una aventura 3D de exploración, acción y cálculo', {
       fontFamily: FONT,
       fontSize: '19px',
-      color: '#8ecae6',
+      color: '#8fd7c2',
     }).setOrigin(0.5);
 
     const rule = this.add.graphics();
-    rule.lineStyle(1, 0xffd166, 0.5);
+    rule.lineStyle(1, 0xe8c778, 0.55);
     rule.lineBetween(GAME_W / 2 - 260, 166, GAME_W / 2 + 260, 166);
+    rule.lineStyle(1, 0xe8c778, 0.22);
+    rule.lineBetween(GAME_W / 2 - 210, 170, GAME_W / 2 + 210, 170);
 
     const has = Save.exists();
     if (has) this.entries.push({ label: 'Continuar aventura', hint: 'Reanuda tu mapa y tu progreso', fn: () => this.start(false) });
@@ -71,9 +75,11 @@ export class MenuScene extends Phaser.Scene {
 
     this.entries.forEach((entry, i) => {
       const y = 222 + i * 62;
-      const panel = this.add.rectangle(GAME_W / 2, y, 460, 50, 0x141834, 0.82)
-        .setStrokeStyle(1, 0x3a3f70)
+      const panel = this.add.rectangle(GAME_W / 2, y, 460, 50, 0x242126, 0.94)
+        .setStrokeStyle(1, 0x5a5348)
         .setInteractive({ useHandCursor: true });
+      const mark = this.add.rectangle(GAME_W / 2 - 224, y, 4, 36, 0xe8c778, 0.55);
+      this.add.rectangle(GAME_W / 2 + 224, y, 7, 7, 0x8fd7c2, 0.5).setRotation(Math.PI / 4);
       const text = this.add.text(GAME_W / 2 - 205, y - 8, entry.label, {
         fontFamily: FONT,
         fontSize: '23px',
@@ -86,6 +92,8 @@ export class MenuScene extends Phaser.Scene {
       });
       entry.text = text;
       entry.hintText = hint;
+      entry.panel = panel;
+      entry.mark = mark;
       panel.on('pointerover', () => this.select(i));
       panel.on('pointerdown', () => { this.select(i); this.activate(); });
     });
@@ -182,9 +190,12 @@ export class MenuScene extends Phaser.Scene {
     this.sel = (i + n) % n;
     this.entries.forEach((entry, idx) => {
       const on = idx === this.sel;
-      entry.text?.setColor(on ? '#ffd166' : '#e8ebff');
+      entry.text?.setColor(on ? '#e8c778' : '#e8ebff');
       entry.text?.setScale(on ? 1.04 : 1);
-      entry.hintText?.setColor(on ? '#c9c2ae' : '#727ab0');
+      entry.hintText?.setColor(on ? '#c9c2ae' : '#8b8478');
+      entry.panel?.setFillStyle(on ? 0x353039 : 0x242126, on ? 0.98 : 0.9);
+      entry.panel?.setStrokeStyle(1, on ? 0xe8c778 : 0x5a5348);
+      entry.mark?.setAlpha(on ? 1 : 0.45);
     });
   }
 

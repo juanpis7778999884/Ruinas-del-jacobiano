@@ -56,16 +56,19 @@ export function mountHud() {
   root.id = 'game-hud';
   root.innerHTML = `
     <div class="hud-left">
-      <div class="hud-bar hp"><div class="hud-fill"></div><span></span></div>
-      <div class="hud-bar st"><div class="hud-fill"></div></div>
+      <div class="hud-vitals">
+        <span class="hud-caption">Vitalidad</span>
+        <div class="hud-bar hp"><div class="hud-fill"></div><span></span></div>
+        <div class="hud-bar st"><div class="hud-fill"></div></div>
+      </div>
       <div class="hud-runes"><span class="rune-label"></span><span class="rune-pips"></span></div>
     </div>
     <div class="hud-center">
       <div class="hud-zone"></div>
-      <div class="hud-boss" hidden><span></span><div class="hud-boss-track"><div class="hud-boss-fill"></div></div></div>
+      <div class="hud-boss" hidden><i>✦</i><span></span><div class="hud-boss-track"><div class="hud-boss-fill"></div></div></div>
     </div>
     <div class="hud-right">
-      <div class="minimap-frame"><canvas id="hud-minimap" width="160" height="100"></canvas></div>
+      <div class="minimap-frame"><span class="minimap-compass">N</span><canvas id="hud-minimap" width="160" height="100"></canvas></div>
     </div>
     <div class="hud-quest"></div>
     <div class="hud-prompt" hidden></div>
@@ -96,7 +99,7 @@ export function updateHud(s: HudState) {
   const zone = ZONES[s.zone];
   zoneText.textContent = `${zone.shortName} · ${zone.subtitle}`;
   updateRunes(s.runesSolved, s.runesTotal);
-  questText.textContent = `✦ ${questStatus(Save.data, s.mainQuest)}`;
+  questText.textContent = questStatus(Save.data, s.mainQuest);
   if (s.boss) {
     bossBox.hidden = false;
     bossName.textContent = `${s.boss.name} · fase ${s.boss.phase}/${s.boss.phases}`;
@@ -144,14 +147,14 @@ function ensureMinimapBase(zoneId: ZoneId) {
   for (let y = 0; y < zone.map.length; y++) {
     for (let x = 0; x < zone.map[y].length; x++) {
       const ch = charAt(zone, x, y);
-      const c = ch === 'D' || ch === 'g' ? '#5a3f86'
-        : ch === '#' || ch === 'c' ? '#5b5770'
-        : ch === 'T' ? '#2f7a3c'
-        : ch === '~' ? '#2f6ba8'
-        : ch === '=' ? '#8a7048'
-        : ch === ',' ? '#38644a'
-        : ch === '*' ? '#4d8a52'
-        : '#252741';
+      const c = ch === 'D' || ch === 'g' ? '#a24d47'
+        : ch === '#' || ch === 'c' ? '#7c766f'
+        : ch === 'T' ? '#4d7a4a'
+        : ch === '~' ? '#4a7089'
+        : ch === '=' ? '#9a7d4e'
+        : ch === ',' ? '#4e6b4d'
+        : ch === '*' ? '#78975a'
+        : '#2b2d33';
       ctx.fillStyle = c;
       ctx.fillRect(x * tw, y * th, Math.ceil(tw), Math.ceil(th));
     }
@@ -168,7 +171,7 @@ function drawMinimap(zoneId: ZoneId, player: { x: number; y: number }) {
   ctx.clearRect(0, 0, minimap.width, minimap.height);
   if (minimapBase) ctx.drawImage(minimapBase, 0, 0);
   for (const r of zone.runes) {
-    ctx.fillStyle = Save.data.solvedRunes[r.id] ? '#80ed99' : '#8dffd8';
+    ctx.fillStyle = Save.data.solvedRunes[r.id] ? '#b7ead9' : '#8fd7c2';
     ctx.fillRect(r.x * tw, r.y * th, Math.max(2, tw), Math.max(2, th));
   }
   ctx.fillStyle = '#ffffff';

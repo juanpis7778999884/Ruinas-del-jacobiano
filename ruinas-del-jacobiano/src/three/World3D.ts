@@ -7,6 +7,8 @@ import type { MaterialSet } from './materials';
 import type { CharacterRig } from './rig';
 import { animateRig, createBossRig, createEnemyRig, createHeroRig, createNpcRig } from './rig';
 import type { Stage } from './stage';
+import { Scenery } from './scenery';
+import type { SceneryTile } from './scenery';
 import type { BossSnapshot, EnemySnapshot, ProjectileSnapshot, WorldSnapshot } from './types';
 
 interface ParticleEffect {
@@ -27,6 +29,13 @@ interface RingEffect {
 interface EntityVisual {
   rig: CharacterRig;
   deadAt: number;
+}
+
+interface PortalVisual {
+  root: THREE.Group;
+  rings: THREE.Object3D[];
+  light: THREE.PointLight | null;
+  phase: number;
 }
 
 const key = (x: number, y: number) => `${x},${y}`;
@@ -53,6 +62,7 @@ export class World3D {
   private root = new THREE.Group();
   private characterLayer = new THREE.Group();
   private effectLayer = new THREE.Group();
+  private scenery: Scenery;
   private hero: CharacterRig;
   private npcs = new Map<string, CharacterRig>();
   private enemies = new Map<string, EntityVisual>();
@@ -64,8 +74,8 @@ export class World3D {
   private chests = new Map<string, { root: THREE.Group; lid: THREE.Group }>();
   private switches = new Map<string, { root: THREE.Group; core: THREE.Mesh }>();
   private gates = new Map<string, THREE.Group>();
-  private flames: { mesh: THREE.Mesh; light: THREE.PointLight | null; phase: number }[] = [];
-  private waterMesh: THREE.InstancedMesh | null = null;
+  private flames: { mesh: THREE.Mesh; core: THREE.Mesh; light: THREE.PointLight | null; phase: number }[] = [];
+  private portals: PortalVisual[] = [];
   private lensGrid: THREE.GridHelper;
   private ambient: THREE.Points | null = null;
   private ambientVelocity: Float32Array = new Float32Array(0);
@@ -86,6 +96,13 @@ export class World3D {
     stage.scene.add(this.root);
     this.root.add(this.characterLayer);
     this.root.add(this.effectLayer);
+    this.scenery = new Scenery(this.root, mats, {
+      zoneId,
+      ambience: zone.ambience,
+      tileset: zone.tileset,
+      quality: stage.quality,
+      seed: hash(zoneId) ^ 0x9e3779b9,
+    });
     this.hero = createHeroRig(mats);
     this.characterLayer.add(this.hero.root);
     this.lensGrid = new THREE.GridHelper(MAP_W, MAP_W, 0x8dffd8, 0x3b8d78);
@@ -98,49 +115,35 @@ export class World3D {
     this.build();
   }
 
-  private addInstanced(geo: THREE.BufferGeometry, mat: THREE.Material, count: number, place: (i: number, dummy: THREE.Object3D) => void, color?: (i: number) => THREE.Color) {
-    const inst = new THREE.InstancedMesh(geo, mat, count);
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < count; i++) {
-      place(i, dummy);
-      dummy.updateMatrix();
-      inst.setMatrixAt(i, dummy.matrix);
-      if (color) inst.setColorAt(i, color(i));
-    }
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    inst.castShadow = true;
-    inst.receiveShadow = true;
-    this.root.add(inst);
-    return inst;
-  }
-
   private build() {
-    const tiles: Record<string, { x: number; y: number; ch: string; bridge: boolean }[]> = {};
-    const push = (bucket: string, x: number, y: number, ch: string, bridge = false) => {
-      (tiles[bucket] ??= []).push({ x, y, ch, bridge });
+    const tiles: Record<string, SceneryTile[]> = {};
+    const push = (bucket: string, tile: SceneryTile) => {
+      (tiles[bucket] ??= []).push(tile);
     };
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
         const ch = charAt(this.zone, x, y);
-        const bridge = ch === '=' && this.isNearWater(x, y);
-        if (ch === '~') push('water', x, y, ch);
-        else if (bridge) push('bridge', x, y, ch, true);
-        else if (ch === ',' || ch === '*') push('moss', x, y, ch);
-        else if (ch === '=') push('path', x, y, ch);
-        else push('ground', x, y, ch);
-        if (ch === '#' || ch === 'c' || ch === 'o' || ch === 'T' || ch === '*' || ch === ',') push(`prop_${ch}`, x, y, ch);
-        if (ch === 'B' || ch === 'R' || ch === 'P' || ch === 'C' || ch === 'L' || ch === 'S' || ch === 'X' || ch === 'g' || ch === 'D' || ch === '^' || ch === 'v') push(`obj_${ch}`, x, y, ch);
+        const tile: SceneryTile = { x, y, ch };
+        if (ch === '~') push('water', tile);
+        else if (ch === '=' && this.isNearWater(x, y)) push('bridge', tile);
+        else if (ch === ',' || ch === '*') push('moss', tile);
+        else if (ch === '=') push('path', tile);
+        else push('ground', tile);
+        if (ch === '.' || ch === ',' || ch === '*') push('flora', tile);
+        if (ch === '#' || ch === 'c' || ch === 'o' || ch === 'T' || ch === '*' || ch === ',') push(`prop_${ch}`, tile);
+        if (ch === 'B' || ch === 'R' || ch === 'P' || ch === 'C' || ch === 'L' || ch === 'S' || ch === 'X' || ch === 'g' || ch === 'D' || ch === '^' || ch === 'v') push(`obj_${ch}`, tile);
       }
     }
-    this.buildGround(tiles.ground ?? [], tiles.moss ?? [], tiles.path ?? []);
-    this.buildWater(tiles.water ?? []);
-    this.buildBridges(tiles.bridge ?? []);
-    this.buildWalls(tiles['prop_#'] ?? []);
-    this.buildColumns(tiles.prop_c ?? []);
-    this.buildRocks(tiles.prop_o ?? []);
-    this.buildTrees(tiles.prop_T ?? [], tiles['prop_,'] ?? []);
-    this.buildFlowers(tiles['prop_*'] ?? []);
+    this.scenery.buildAtmosphere();
+    this.scenery.buildGround(tiles.ground ?? [], tiles.moss ?? [], tiles.path ?? []);
+    this.scenery.buildWater(tiles.water ?? []);
+    this.scenery.buildBridges(tiles.bridge ?? []);
+    this.scenery.buildWalls(tiles['prop_#'] ?? []);
+    this.scenery.buildColumns(tiles.prop_c ?? []);
+    this.scenery.buildRocks(tiles.prop_o ?? []);
+    this.scenery.buildTrees(tiles.prop_T ?? [], tiles['prop_,'] ?? []);
+    this.scenery.buildUndergrowth(tiles.flora ?? [], tiles.prop_T ?? [], tiles['prop_,'] ?? []);
+    this.scenery.buildFlowers(tiles['prop_*'] ?? []);
     this.buildProps(tiles);
     this.buildZoneSignature();
     this.buildNpcs();
@@ -156,161 +159,7 @@ export class World3D {
     return false;
   }
 
-  private groundMaterial(ch: string) {
-    if (this.zone.tileset === 'temple') return this.mats.marble;
-    if (this.zone.tileset === 'overworld') return ch === ',' || ch === '*' ? this.mats.moss : this.mats.earth;
-    return ch === ',' || ch === '*' ? this.mats.moss : this.mats.stone;
-  }
-
-  private buildGround(ground: { x: number; y: number }[], moss: { x: number; y: number }[], path: { x: number; y: number }[]) {
-    const set = [...ground, ...moss, ...path];
-    const variants = new Map<THREE.Material, number[]>();
-    set.forEach((t, i) => {
-      const use = path.includes(t) ? this.mats.path : moss.includes(t) ? this.mats.moss : this.groundMaterial('.');
-      if (!variants.has(use)) variants.set(use, []);
-      variants.get(use)!.push(i);
-    });
-    variants.forEach((indices, mat) => {
-      const geo = new THREE.BoxGeometry(0.98, 0.16, 0.98);
-      this.addInstanced(geo, mat, indices.length, (i, dummy) => {
-        const t = set[indices[i]];
-        dummy.position.set(t.x + 0.5, -0.08, t.y + 0.5);
-        dummy.rotation.y = 0;
-        dummy.scale.set(1, 1, 1);
-      }, (i) => {
-        const v = 0.78 + this.rnd() * 0.28;
-        return new THREE.Color(v, v * (0.97 + this.rnd() * 0.05), v * (0.93 + this.rnd() * 0.08));
-      });
-    });
-  }
-
-  private buildWater(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    this.waterMesh = this.addInstanced(new THREE.BoxGeometry(0.99, 0.1, 0.99), this.mats.water, tiles.length, (i, dummy) => {
-      dummy.position.set(tiles[i].x + 0.5, -0.04, tiles[i].y + 0.5);
-      dummy.rotation.y = 0;
-      dummy.scale.set(1, 1, 1);
-    }, () => new THREE.Color(0.75 + this.rnd() * 0.35, 0.8 + this.rnd() * 0.2, 1));
-    this.waterMesh.castShadow = false;
-    const stones: { x: number; y: number }[] = [];
-    tiles.forEach((t) => {
-      if (this.rnd() > 0.72 && charAt(this.zone, t.x + 1, t.y) !== '~') stones.push({ x: t.x + 1, y: t.y });
-      if (this.rnd() > 0.8 && charAt(this.zone, t.x, t.y + 1) !== '~') stones.push({ x: t.x, y: t.y + 1 });
-    });
-    if (stones.length) {
-      this.addInstanced(new THREE.DodecahedronGeometry(0.22, 0), this.mats.stone, stones.length, (i, dummy) => {
-        dummy.position.set(stones[i].x + 0.5, 0.08, stones[i].y + 0.5);
-        dummy.rotation.set(this.rnd(), this.rnd() * 6, this.rnd());
-        dummy.scale.setScalar(0.7 + this.rnd() * 0.7);
-      });
-    }
-  }
-
-  private buildBridges(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    this.addInstanced(new THREE.BoxGeometry(0.96, 0.12, 0.3), this.mats.wood, tiles.length * 3, (i, dummy) => {
-      const t = tiles[Math.floor(i / 3)];
-      const row = i % 3;
-      dummy.position.set(t.x + 0.5, 0.13 + row * 0.01, t.y + 0.18 + row * 0.32);
-      dummy.rotation.y = (this.rnd() - 0.5) * 0.05;
-      dummy.scale.set(1, 1, 1);
-    }, (i) => new THREE.Color(0.75 + (i % 3) * 0.08, 0.7 + this.rnd() * 0.2, 0.65 + this.rnd() * 0.2));
-    this.addInstanced(new THREE.BoxGeometry(0.08, 0.5, 0.08), this.mats.wood, tiles.length * 2, (i, dummy) => {
-      const t = tiles[Math.floor(i / 2)];
-      dummy.position.set(t.x + (i % 2 ? 0.92 : 0.08), 0.36, t.y + 0.5);
-      dummy.rotation.y = 0;
-      dummy.scale.set(1, 1, 1);
-    });
-  }
-
-  private buildWalls(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    this.addInstanced(new THREE.BoxGeometry(0.98, 1.15, 0.98), this.mats.stone, tiles.length, (i, dummy) => {
-      const t = tiles[i];
-      dummy.position.set(t.x + 0.5, 0.52, t.y + 0.5);
-      dummy.rotation.y = (this.rnd() - 0.5) * 0.06;
-      dummy.scale.set(1, 0.86 + this.rnd() * 0.28, 1);
-    }, () => new THREE.Color(0.72 + this.rnd() * 0.3, 0.72 + this.rnd() * 0.25, 0.78 + this.rnd() * 0.22));
-    const caps = tiles.filter(() => this.rnd() > 0.62);
-    if (caps.length) {
-      this.addInstanced(new THREE.BoxGeometry(0.7, 0.22, 0.7), this.mats.stoneDark, caps.length, (i, dummy) => {
-        dummy.position.set(caps[i].x + 0.5, 1.16, caps[i].y + 0.5);
-        dummy.rotation.set((this.rnd() - 0.5) * 0.2, this.rnd() * 3, (this.rnd() - 0.5) * 0.2);
-        dummy.scale.setScalar(0.8 + this.rnd() * 0.5);
-      });
-    }
-  }
-
-  private buildColumns(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    const shaft = new THREE.CylinderGeometry(0.25, 0.3, 2.3, 8);
-    this.addInstanced(shaft, this.zone.tileset === 'temple' ? this.mats.marble : this.mats.stone, tiles.length, (i, dummy) => {
-      dummy.position.set(tiles[i].x + 0.5, 1.15, tiles[i].y + 0.5);
-      dummy.rotation.set(0, this.rnd() * 0.8, 0);
-      dummy.scale.set(1, 0.85 + this.rnd() * 0.3, 1);
-    });
-    this.addInstanced(new THREE.BoxGeometry(0.72, 0.16, 0.72), this.mats.marble, tiles.length * 2, (i, dummy) => {
-      const t = tiles[Math.floor(i / 2)];
-      dummy.position.set(t.x + 0.5, i % 2 ? 2.32 : 0.12, t.y + 0.5);
-      dummy.rotation.y = 0;
-      dummy.scale.set(1, 1, 1);
-    });
-  }
-
-  private buildRocks(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    this.addInstanced(new THREE.DodecahedronGeometry(0.42, 0), this.mats.stoneDark, tiles.length, (i, dummy) => {
-      dummy.position.set(tiles[i].x + 0.5, 0.24, tiles[i].y + 0.5);
-      dummy.rotation.set(this.rnd() * 3, this.rnd() * 6, this.rnd() * 3);
-      dummy.scale.set(0.8 + this.rnd() * 0.6, 0.6 + this.rnd() * 0.7, 0.8 + this.rnd() * 0.6);
-    });
-  }
-
-  private buildTrees(trees: { x: number; y: number }[], bushes: { x: number; y: number }[]) {
-    trees.forEach((t, i) => {
-      const root = new THREE.Group();
-      root.position.set(t.x + 0.5, 0, t.y + 0.5);
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 2.0, 6), this.mats.bark);
-      trunk.position.y = 1.0;
-      trunk.castShadow = true;
-      root.add(trunk);
-      for (let j = 0; j < 3; j++) {
-        const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.85 - j * 0.14, 1), this.mats.leaf);
-        crown.position.set((this.rnd() - 0.5) * 0.5, 2.0 + j * 0.55, (this.rnd() - 0.5) * 0.5);
-        crown.scale.set(1.25 + this.rnd() * 0.35, 0.85, 1.1 + this.rnd() * 0.3);
-        crown.castShadow = true;
-        root.add(crown);
-      }
-      for (let j = 0; j < 3; j++) {
-        const rootlet = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 0.5, 5), this.mats.bark);
-        rootlet.position.set(Math.cos(j * 2.1) * 0.35, 0.16, Math.sin(j * 2.1) * 0.35);
-        rootlet.rotation.z = Math.cos(j * 2.1) * 0.7;
-        rootlet.rotation.x = -Math.sin(j * 2.1) * 0.7;
-        root.add(rootlet);
-      }
-      root.rotation.y = this.rnd() * 6.28;
-      root.scale.setScalar(0.85 + (i % 3) * 0.12);
-      this.root.add(root);
-    });
-    if (!bushes.length) return;
-    this.addInstanced(new THREE.IcosahedronGeometry(0.36, 0), this.mats.leaf, bushes.length, (i, dummy) => {
-      dummy.position.set(bushes[i].x + 0.5, 0.22, bushes[i].y + 0.5);
-      dummy.rotation.set(this.rnd(), this.rnd() * 6, this.rnd());
-      dummy.scale.set(1 + this.rnd() * 0.5, 0.6 + this.rnd() * 0.4, 1 + this.rnd() * 0.5);
-    });
-  }
-
-  private buildFlowers(tiles: { x: number; y: number }[]) {
-    if (!tiles.length) return;
-    this.addInstanced(new THREE.ConeGeometry(0.07, 0.3, 5), this.mats.rune, tiles.length * 3, (i, dummy) => {
-      const t = tiles[Math.floor(i / 3)];
-      dummy.position.set(t.x + 0.25 + (i % 3) * 0.24, 0.16, t.y + 0.3 + this.rnd() * 0.4);
-      dummy.rotation.y = this.rnd() * 6;
-      dummy.scale.setScalar(0.7 + this.rnd() * 0.6);
-    });
-  }
-
-  private buildProps(tiles: Record<string, { x: number; y: number; ch: string }[]>) {
+  private buildProps(tiles: Record<string, SceneryTile[]>) {
     (tiles.obj_B ?? []).forEach((t) => this.buildBrazier(t.x, t.y));
     (tiles.obj_R ?? []).forEach((t) => this.buildRune(t.x, t.y));
     (tiles.obj_P ?? []).forEach((t) => this.buildPortal(t.x, t.y));
@@ -327,48 +176,72 @@ export class World3D {
   private buildBrazier(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 0.8, 6), this.mats.stoneDark);
-    base.position.y = 0.4;
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.18, 8), this.mats.stone);
+    plinth.position.y = 0.09;
+    root.add(plinth);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.24, 0.78, 8), this.mats.stoneDark);
+    base.position.y = 0.49;
     base.castShadow = true;
     root.add(base);
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.2, 0.18, 8), this.mats.metal);
-    bowl.position.y = 0.86;
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 6, 16), this.mats.gold);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.y = 0.78;
+    root.add(collar);
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.2, 0.2, 10), this.mats.metal);
+    bowl.position.y = 0.94;
     root.add(bowl);
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 7), this.mats.flame);
-    flame.position.y = 1.22;
+    const coal = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), this.mats.flame);
+    coal.position.y = 1.02;
+    root.add(coal);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.62, 8), this.mats.flame);
+    flame.position.y = 1.34;
     root.add(flame);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), this.mats.glow);
+    core.position.y = 1.2;
+    root.add(core);
     let light: THREE.PointLight | null = null;
-    if (this.stage.quality === 'high' && this.flames.length < 6) {
-      light = new THREE.PointLight(0xffa64d, 2.4, 7, 2);
-      light.position.y = 1.3;
+    if (this.stage.quality === 'high' && this.flames.length < 8) {
+      light = new THREE.PointLight(0xffa64d, 2.6, 8, 2);
+      light.position.y = 1.34;
       root.add(light);
     }
     this.root.add(root);
-    this.flames.push({ mesh: flame, light, phase: this.rnd() * 6 });
+    this.flames.push({ mesh: flame, core, light, phase: this.rnd() * 6 });
   }
 
   private buildRune(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.22, 8), this.mats.stone);
-    base.position.y = 0.11;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.54, 0.24, 10), this.mats.stone);
+    base.position.y = 0.12;
     root.add(base);
+    const inlay = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.035, 6, 28), this.mats.gold);
+    inlay.rotation.x = Math.PI / 2;
+    inlay.position.y = 0.26;
+    root.add(inlay);
     const coreMat = this.mats.stoneDark.clone();
     coreMat.userData.dynamic = true;
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), coreMat);
     coreMat.emissive = new THREE.Color(0x1c2b35);
-    core.position.y = 0.92;
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), coreMat);
+    core.position.y = 1.0;
     core.castShadow = true;
     root.add(core);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.035, 6, 24), this.mats.metal);
-    ring.position.y = 0.92;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.12, 0), coreMat);
+      shard.position.set(Math.cos(a) * 0.46, 0.86 + (i % 2) * 0.32, Math.sin(a) * 0.46);
+      shard.rotation.set(this.rnd() * 3, a, this.rnd() * 3);
+      root.add(shard);
+    }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.032, 6, 28), this.mats.metal);
+    ring.position.y = 1.0;
     ring.rotation.x = Math.PI / 2;
     root.add(ring);
     const def = this.zone.runes.find((r) => r.x === x && r.y === y);
     if (def) this.runeIds.set(key(x, y), def.id);
     let light: THREE.PointLight | null = null;
     if (this.stage.quality === 'high' && def) {
-      light = new THREE.PointLight(0x8dffd8, 0, 5, 2);
+      light = new THREE.PointLight(0x8dffd8, 0, 6, 2);
       light.position.y = 1.1;
       root.add(light);
     }
@@ -379,34 +252,66 @@ export class World3D {
   private buildPortal(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.12, 8, 24, Math.PI * 1.6), this.mats.marble);
-    arch.position.y = 1.3;
-    arch.rotation.z = Math.PI * 0.2;
+    for (const side of [-1, 1]) {
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.27, 1.85, 8), this.mats.marble);
+      pillar.position.set(side * 0.78, 0.93, 0);
+      pillar.castShadow = true;
+      root.add(pillar);
+      const capital = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.16, 0.48), this.mats.gold);
+      capital.position.set(side * 0.78, 1.92, 0);
+      root.add(capital);
+    }
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.13, 10, 32, Math.PI), this.mats.marble);
+    arch.position.y = 1.92;
     arch.castShadow = true;
     root.add(arch);
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.58, 24), this.mats.portal);
-    disc.position.y = 1.22;
-    root.add(disc);
-    const light = new THREE.PointLight(0xb38bff, 1.6, 6, 2);
-    light.position.y = 1.3;
+    const surface = new THREE.Mesh(new THREE.CircleGeometry(0.68, 36), this.mats.portalSurface);
+    surface.position.y = 1.3;
+    surface.renderOrder = 4;
+    root.add(surface);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(0.82, 36), this.mats.portal);
+    halo.position.set(0, 1.3, -0.03);
+    root.add(halo);
+    const rings: THREE.Object3D[] = [];
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62 + i * 0.14, 0.028, 6, 36), i === 1 ? this.mats.glow : this.mats.gold);
+      ring.position.y = 1.3;
+      ring.rotation.x = Math.PI / 2 + (i - 1) * 0.28;
+      root.add(ring);
+      rings.push(ring);
+    }
+    const light = new THREE.PointLight(0xb38bff, 1.8, 8, 2);
+    light.position.y = 1.4;
     if (this.stage.quality === 'high') root.add(light);
     this.root.add(root);
+    this.portals.push({ root, rings, light, phase: this.rnd() * Math.PI * 2 });
   }
 
   private buildChest(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.42, 0.5), this.mats.wood);
-    body.position.y = 0.28;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.44, 0.54), this.mats.wood);
+    body.position.y = 0.3;
     body.castShadow = true;
     root.add(body);
+    for (const offset of [-0.22, 0.22]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.47, 0.56), this.mats.metal);
+      band.position.set(offset, 0.3, 0);
+      root.add(band);
+    }
     const lid = new THREE.Group();
-    lid.position.set(0, 0.49, -0.25);
-    const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.18, 0.52), this.mats.wood);
-    lidMesh.position.z = 0.25;
+    lid.position.set(0, 0.52, -0.27);
+    const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.2, 0.56), this.mats.wood);
+    lidMesh.position.z = 0.28;
+    lidMesh.castShadow = true;
     lid.add(lidMesh);
-    lid.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.08), this.mats.gold));
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.24, 0.1), this.mats.gold);
+    crest.position.set(0, 0.02, 0.3);
+    lid.add(crest);
     root.add(lid);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), this.mats.glow);
+    gem.position.set(0, 0.36, 0.3);
+    root.add(gem);
     this.root.add(root);
     this.chests.set(key(x, y), { root, lid });
   }
@@ -414,29 +319,41 @@ export class World3D {
   private buildTablet(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.85, 0.14), this.mats.marble);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.16, 0.44), this.mats.stoneDark);
+    base.position.y = 0.08;
+    root.add(base);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.88, 0.16), this.mats.marble);
     slab.position.y = 0.62;
-    slab.rotation.x = -0.22;
+    slab.rotation.x = -0.18;
     slab.castShadow = true;
     root.add(slab);
-    const glyph = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.02), this.mats.rune);
-    glyph.position.set(0, 0.78, 0.09);
-    root.add(glyph);
+    for (let i = 0; i < 3; i++) {
+      const glyph = new THREE.Mesh(new THREE.BoxGeometry(i === 1 ? 0.3 : 0.4, 0.035, 0.02), this.mats.rune);
+      glyph.position.set(0, 0.82 - i * 0.15, 0.1);
+      root.add(glyph);
+    }
     this.root.add(root);
   }
 
   private buildSwitch(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.1, 6), this.mats.stone);
-    pillar.position.y = 0.55;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.14, 8), this.mats.stoneDark);
+    base.position.y = 0.07;
+    root.add(base);
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.08, 8), this.mats.stone);
+    pillar.position.y = 0.6;
     pillar.castShadow = true;
     root.add(pillar);
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 6, 20), this.mats.gold);
+    crown.rotation.x = Math.PI / 2;
+    crown.position.y = 1.15;
+    root.add(crown);
     const coreMat = this.mats.stoneDark.clone();
     coreMat.userData.dynamic = true;
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 0), coreMat);
     coreMat.emissive = new THREE.Color(0x111820);
-    core.position.y = 1.22;
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), coreMat);
+    core.position.y = 1.32;
     root.add(core);
     this.root.add(root);
     const id = this.zone.mechanisms.flatMap((m) => m.switches).find((s) => s.x === x && s.y === y)?.id;
@@ -446,14 +363,27 @@ export class World3D {
   private buildShrine(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.75, 0.2, 8), this.mats.marble);
-    base.position.y = 0.1;
-    root.add(base);
-    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.36, 0), this.mats.rune);
-    crystal.position.y = 0.85;
+    for (let i = 0; i < 3; i++) {
+      const step = new THREE.Mesh(new THREE.CylinderGeometry(0.78 - i * 0.12, 0.84 - i * 0.12, 0.12, 10), i === 1 ? this.mats.stoneDark : this.mats.marble);
+      step.position.y = 0.06 + i * 0.12;
+      root.add(step);
+    }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.035, 6, 28), this.mats.gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.4;
+    root.add(ring);
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.38, 0), this.mats.rune);
+    crystal.position.y = 0.98;
     root.add(crystal);
-    const light = new THREE.PointLight(0x8dffd8, 1.5, 5, 2);
-    light.position.y = 0.9;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.13, 0), this.mats.crystal);
+      shard.position.set(Math.cos(a) * 0.42, 0.72, Math.sin(a) * 0.42);
+      shard.rotation.set(a, this.rnd() * 3, a);
+      root.add(shard);
+    }
+    const light = new THREE.PointLight(0x8dffd8, 1.6, 6, 2);
+    light.position.y = 1.0;
     if (this.stage.quality === 'high') root.add(light);
     this.root.add(root);
   }
@@ -462,18 +392,32 @@ export class World3D {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
     for (const side of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.0, 0.32), this.mats.marble);
-      post.position.set(side * 0.42, 1.0, 0);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.18, 0.46), this.mats.stoneDark);
+      foot.position.set(side * 0.45, 0.09, 0);
+      root.add(foot);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.1, 0.36), this.mats.marble);
+      post.position.set(side * 0.45, 1.1, 0);
       post.castShadow = true;
       root.add(post);
+      const capital = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.16, 0.5), this.mats.gold);
+      capital.position.set(side * 0.45, 2.18, 0);
+      root.add(capital);
     }
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.78, 1.8, 0.22), this.mats.stoneDark);
-    slab.position.y = 0.95;
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.22, 0.4), this.mats.marble);
+    lintel.position.y = 2.3;
+    root.add(lintel);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.86, 0.24), this.mats.stoneDark);
+    slab.position.y = 1.0;
     slab.castShadow = true;
     slab.name = 'slab';
     root.add(slab);
-    const seal = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.045, 6, 20), type === 'g' ? this.mats.gold : this.mats.rune);
-    seal.position.set(0, 1.1, 0.14);
+    for (let i = 0; i < 3; i++) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.06, 0.27), this.mats.metal);
+      band.position.y = 0.5 + i * 0.5;
+      slab.add(band);
+    }
+    const seal = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 8, 24), type === 'g' ? this.mats.gold : this.mats.rune);
+    seal.position.set(0, 1.12, 0.16);
     seal.name = 'seal';
     root.add(seal);
     this.root.add(root);
@@ -483,35 +427,92 @@ export class World3D {
   private buildStairs(x: number, y: number) {
     const root = new THREE.Group();
     root.position.set(x + 0.5, 0, y + 0.5);
-    for (let i = 0; i < 4; i++) {
-      const step = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.16, 0.22), this.mats.marble);
-      step.position.set(0, 0.05 + i * 0.13, -0.33 + i * 0.22);
+    for (let i = 0; i < 5; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.14, 0.2), i % 2 ? this.mats.marble : this.mats.stoneWorn);
+      step.position.set(0, 0.05 + i * 0.12, -0.4 + i * 0.2);
+      step.castShadow = true;
       root.add(step);
+    }
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 1.0), this.mats.stone);
+      rail.position.set(side * 0.48, 0.28, 0);
+      rail.rotation.x = -0.12;
+      root.add(rail);
     }
     this.root.add(root);
   }
 
   private buildZoneSignature() {
+    if (this.zoneId === 'cartesia') {
+      const fountain = new THREE.Group();
+      fountain.position.set(16.5, 0, 10.5);
+      const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.26, 16), this.mats.marble);
+      basin.position.y = 0.13;
+      fountain.add(basin);
+      const water = new THREE.Mesh(new THREE.CircleGeometry(1.5, 24), this.mats.water);
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = 0.28;
+      fountain.add(water);
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 2.2, 10), this.mats.marble);
+      column.position.y = 1.2;
+      column.castShadow = true;
+      fountain.add(column);
+      for (let i = 0; i < 3; i++) {
+        const crownRing = new THREE.Mesh(new THREE.TorusGeometry(0.5 + i * 0.28, 0.035, 6, 28), this.mats.gold);
+        crownRing.rotation.x = Math.PI / 2 + i * 0.22;
+        crownRing.position.y = 1.7 + i * 0.34;
+        fountain.add(crownRing);
+      }
+      this.root.add(fountain);
+    }
     if (this.zoneId === 'ciudad') {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.16, 8, 48), this.mats.gold);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.18, 10, 56), this.mats.gold);
       ring.rotation.x = Math.PI / 2;
-      ring.position.set(23.5, 0.12, 10.5);
+      ring.position.set(23.5, 0.14, 10.5);
       this.root.add(ring);
+      const tower = new THREE.Group();
+      tower.position.set(23.5, 0, 10.5);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 0.4, 10), this.mats.stone);
+      base.position.y = 0.2;
+      tower.add(base);
+      const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.72, 3.8, 8), this.mats.marble);
+      spire.position.y = 2.3;
+      spire.castShadow = true;
+      tower.add(spire);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(0.78, 1.4, 8), this.mats.gold);
+      crown.position.y = 4.75;
+      tower.add(crown);
+      this.root.add(tower);
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
-        const marker = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), this.mats.marble);
-        marker.position.set(23.5 + Math.cos(a) * 4.4, 0.4, 10.5 + Math.sin(a) * 4.4);
+        const marker = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.82, 0.2), this.mats.marble);
+        marker.position.set(23.5 + Math.cos(a) * 4.6, 0.43, 10.5 + Math.sin(a) * 4.6);
         marker.rotation.y = -a;
         marker.castShadow = true;
         this.root.add(marker);
+        if (i % 3 === 0) {
+          const banner = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.1, 0.6), this.mats.cloth);
+          banner.position.set(23.5 + Math.cos(a) * 4.6, 1.5, 10.5 + Math.sin(a) * 4.6);
+          banner.rotation.y = -a;
+          this.root.add(banner);
+        }
       }
     }
     if (this.zoneId === 'llanura') {
-      for (let i = 0; i < 5; i++) {
-        const obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.28, 2.4, 4), this.mats.marble);
-        obelisk.position.set(5 + i * 5, 1.2, 4 + (i % 2) * 12);
-        obelisk.rotation.y = Math.PI / 4;
-        obelisk.castShadow = true;
+      for (let i = 0; i < 6; i++) {
+        const obelisk = new THREE.Group();
+        obelisk.position.set(5 + i * 4.6, 0, i % 2 ? 4.5 : 15.5);
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.9), this.mats.stoneDark);
+        plinth.position.y = 0.15;
+        obelisk.add(plinth);
+        const shaft = new THREE.Mesh(new THREE.ConeGeometry(0.3, 2.6 + (i % 2) * 0.5, 4), this.mats.marble);
+        shaft.position.y = 1.55;
+        shaft.rotation.y = Math.PI / 4;
+        shaft.castShadow = true;
+        obelisk.add(shaft);
+        const seal = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 6, 18), this.mats.gold);
+        seal.position.set(0, 1.1, 0.24);
+        obelisk.add(seal);
         this.root.add(obelisk);
       }
     }
@@ -519,25 +520,40 @@ export class World3D {
       for (let i = 0; i < 4; i++) {
         const statue = new THREE.Group();
         statue.position.set(6 + i * 6, 0, i % 2 ? 3 : 17);
-        const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), this.mats.stone);
-        plinth.position.y = 0.2;
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 1.0), this.mats.stoneDark);
+        plinth.position.y = 0.21;
         statue.add(plinth);
-        const figure = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.3, 1.2, 6), this.mats.marble);
-        figure.position.y = 1.0;
-        figure.castShadow = true;
-        statue.add(figure);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), this.mats.marble);
-        head.position.y = 1.72;
+        const robe = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.35, 8), this.mats.marble);
+        robe.position.y = 1.05;
+        robe.castShadow = true;
+        statue.add(robe);
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.62, 8), this.mats.marble);
+        torso.position.y = 1.72;
+        statue.add(torso);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 8), this.mats.marble);
+        head.position.y = 2.15;
         statue.add(head);
+        const diadem = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 6, 20), this.mats.gold);
+        diadem.rotation.x = Math.PI / 2;
+        diadem.position.y = 2.28;
+        statue.add(diadem);
         this.root.add(statue);
       }
     }
     if (this.zoneId === 'valle') {
-      for (let i = 0; i < 18; i++) {
-        const reed = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.9, 4), this.mats.leaf);
-        reed.position.set(2 + this.rnd() * 28, 0.45, 4 + this.rnd() * 12);
-        reed.rotation.z = (this.rnd() - 0.5) * 0.4;
+      for (let i = 0; i < 26; i++) {
+        const reed = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.95, 4), this.mats.leafDark);
+        reed.position.set(2 + this.rnd() * 28, 0.46, 3 + this.rnd() * 14);
+        reed.rotation.z = (this.rnd() - 0.5) * 0.42;
         this.root.add(reed);
+      }
+      for (let i = 0; i < 5; i++) {
+        const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7, 0), this.mats.stoneWorn);
+        stone.position.set(2 + i * 6, 0.35, 18 + (i % 2) * 0.5);
+        stone.rotation.set(this.rnd(), this.rnd() * 6, this.rnd());
+        stone.scale.set(0.8 + this.rnd() * 0.5, 0.6 + this.rnd() * 0.5, 0.8 + this.rnd() * 0.5);
+        stone.castShadow = true;
+        this.root.add(stone);
       }
     }
   }
@@ -741,19 +757,21 @@ export class World3D {
     this.updateCamera(dt, time);
     this.updateAmbient(dt, t);
     this.updateEffects(dt);
-    if (this.waterMesh) {
-      const mat = this.mats.water;
-      if (mat.map) {
-        mat.map.offset.x = t * 0.035;
-        mat.map.offset.y = Math.sin(t * 0.4) * 0.05;
-      }
-      mat.emissiveIntensity = 0.28 + Math.sin(t * 1.2) * 0.08;
+    this.scenery.update(t);
+    this.mats.portalSurface.uniforms.uTime.value = t;
+    if (this.mats.water.map && this.mats.water.normalMap) {
+      this.mats.water.map.offset.x = t * 0.035;
+      this.mats.water.map.offset.y = Math.sin(t * 0.4) * 0.05;
+      this.mats.water.normalMap.offset.x = -t * 0.022;
+      this.mats.water.normalMap.offset.y = t * 0.017;
     }
+    this.mats.water.emissiveIntensity = 0.32 + Math.sin(t * 1.2) * 0.1;
     this.flames.forEach((f, i) => {
-      const wave = Math.sin(t * 7 + f.phase + i) * 0.12;
-      f.mesh.scale.set(1 + wave, 1 + wave * 1.8, 1 + wave);
+      const wave = Math.sin(t * 7 + f.phase + i) * 0.14;
+      f.mesh.scale.set(1 + wave, 1 + wave * 1.9, 1 + wave);
       f.mesh.rotation.y = t * 1.4 + i;
-      if (f.light) f.light.intensity = 2.0 + Math.sin(t * 9 + i) * 0.35;
+      f.core.scale.setScalar(0.9 + Math.sin(t * 11 + i) * 0.18);
+      if (f.light) f.light.intensity = 2.3 + Math.sin(t * 9 + i) * 0.4;
     });
     if (time >= this.nextFire && this.flames.length) {
       this.nextFire = time + 160;
@@ -762,7 +780,24 @@ export class World3D {
       f.mesh.getWorldPosition(p);
       this.spawnParticles(p.x, p.z, 0xffa64d, this.stage.quality === 'high' ? 4 : 2, 0.12, 0.5, 520, 0.85, p.y);
     }
-    this.runes.forEach((r) => r.root.rotation.y = Math.sin(t * 0.6) * 0.08);
+    this.runes.forEach((r, k) => {
+      const phase = (hash(k) % 628) / 100;
+      r.root.rotation.y = Math.sin(t * 0.6 + phase) * 0.1;
+      r.core.rotation.y = t * 0.7 + phase;
+      r.core.position.y = 1.0 + Math.sin(t * 1.6 + phase) * 0.06;
+    });
+    this.portals.forEach((portal, index) => {
+      portal.rings.forEach((ring, ringIndex) => {
+        ring.rotation.z = t * (0.22 + ringIndex * 0.14) * (ringIndex % 2 ? -1 : 1) + portal.phase;
+        ring.rotation.y = Math.sin(t * 0.5 + index + ringIndex) * 0.22;
+      });
+      if (portal.light) portal.light.intensity = 1.6 + Math.sin(t * 2.2 + portal.phase) * 0.45;
+      if (this.rnd() > 0.982) {
+        const p = new THREE.Vector3();
+        portal.root.getWorldPosition(p);
+        this.spawnParticles(p.x, p.z, 0xc4a4ff, this.stage.quality === 'high' ? 3 : 1, 1.1, 0.45, 720, -0.08, 1.2);
+      }
+    });
     this.lensGrid.position.y = 0.16 + Math.sin(t * 2) * 0.02;
   }
 
@@ -909,6 +944,7 @@ export class World3D {
   }
 
   dispose() {
+    this.scenery.dispose();
     this.root.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.LineSegments) {
         const geo = obj.geometry;

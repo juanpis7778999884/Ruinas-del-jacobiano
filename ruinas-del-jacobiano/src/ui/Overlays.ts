@@ -48,11 +48,11 @@ const itemName = (id: ItemId) => ITEMS[id]?.name ?? id;
 const itemIcon = (id: ItemId) => ITEMS[id]?.icon ?? '◆';
 
 const TILE_COLORS: Record<string, string> = {
-  '.': '#3c3a4f', ',': '#38644a', '=': '#8a7048', '*': '#c78bb5',
-  '#': '#77728f', c: '#9b95ac', o: '#55556b', T: '#2f7a3c',
-  '~': '#2f6ba8', B: '#ffb703', R: '#8dffd8', P: '#b38bff',
-  C: '#ffd166', L: '#8ecae6', S: '#8dffd8', X: '#8dffd8',
-  D: '#d95f5f', g: '#d95f5f', '^': '#c9c2ae', v: '#c9c2ae',
+  '.': '#35343a', ',': '#4e6b4d', '=': '#9a7d4e', '*': '#a97f9a',
+  '#': '#7c766f', c: '#9a9285', o: '#5c5754', T: '#4d7a4a',
+  '~': '#4a7089', B: '#e8c778', R: '#8fd7c2', P: '#b295c9',
+  C: '#e8c778', L: '#9fc4cf', S: '#8fd7c2', X: '#8fd7c2',
+  D: '#a24d47', g: '#a24d47', '^': '#c9c2ae', v: '#c9c2ae',
 };
 
 function mapCanvas(zoneId: ZoneId, player: { x: number; y: number }): string {
@@ -214,7 +214,7 @@ function deathHtml(): string {
 
 function creditsHtml(fromMenu = false): string {
   return `<h2>Créditos</h2>
-    <p><b>Ruinas del Jacobiano</b> — aventura 2.5D de exploración, acción y cálculo.</p>
+    <p><b>Ruinas del Jacobiano</b> — aventura 3D de exploración, acción y cálculo.</p>
     <p>Arte, mapas, personajes, música y efectos: generados por código dentro del proyecto. Sin recursos de franquicias externas.</p>
     <p>Motor: Phaser 3 · Tipografía: KaTeX para las fórmulas · Guardado local en tu dispositivo.</p>
     <p class="muted">Las preguntas se generan y verifican matemáticamente con integración numérica. Gracias por explorar con nosotros.</p>

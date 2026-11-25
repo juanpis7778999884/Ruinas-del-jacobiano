@@ -54,7 +54,7 @@ export const ISO_GATE = { x: 10, y: 0 };
 
 export const ISO_SPAWN = { x: 3, y: 4 };
 
-export const ISO_ZONE_NAME = 'Ruinas de Cartesia (prototipo 2.5D)';
+export const ISO_ZONE_NAME = 'Ruinas de Cartesia';
 
 /** Caracteres que bloquean el paso. */
 export const ISO_SOLID_CHARS = new Set(['#', '~', 'T', 'o', 'D']);
