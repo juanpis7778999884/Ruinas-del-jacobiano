@@ -8,6 +8,7 @@ import type { CharacterRig } from './rig';
 import { animateRig, createBossRig, createEnemyRig, createHeroRig, createNpcRig } from './rig';
 import type { Stage } from './stage';
 import { Scenery } from './scenery';
+import { ThirdPersonCamera } from './ThirdPersonCamera';
 import type { SceneryTile } from './scenery';
 import type { BossSnapshot, EnemySnapshot, ProjectileSnapshot, WorldSnapshot } from './types';
 
@@ -86,6 +87,9 @@ export class World3D {
   private cameraShake = 0;
   private nextFire = 0;
   private rnd: () => number;
+  public readonly cameraController: ThirdPersonCamera;
+  private colliders: THREE.Box3[] = [];
+  private heroVisualYaw = 0;
 
   constructor(stage: Stage, zone: ZoneDef, zoneId: ZoneId, mats: MaterialSet) {
     this.stage = stage;
@@ -113,6 +117,10 @@ export class World3D {
     this.root.add(this.lensGrid);
     stage.setAtmosphere(zone.ambience);
     this.build();
+    this.cameraController = new ThirdPersonCamera(this.stage);
+    this.heroVisualYaw = this.hero.root.rotation.y;
+    this.collectColliders();
+    this.cameraController.setColliders(this.colliders);
   }
 
   private build() {
@@ -596,12 +604,36 @@ export class World3D {
     this.root.add(this.ambient);
   }
 
-  sync(snapshot: WorldSnapshot) {
+  private collectColliders() {
+    this.colliders = [];
+    const add = (x: number, y: number, sx: number, sy: number, sz: number) => {
+      const min = new THREE.Vector3(x + 0.5 - sx / 2, 0, y + 0.5 - sz / 2);
+      const max = new THREE.Vector3(x + 0.5 + sx / 2, sy, y + 0.5 + sz / 2);
+      this.colliders.push(new THREE.Box3(min, max));
+    };
+    for (let y = 0; y < MAP_H; y++) {
+      for (let x = 0; x < MAP_W; x++) {
+        const ch = charAt(this.zone, x, y);
+        if (ch === '#') add(x, y, 1, 1.2, 1);
+        else if (ch === 'c') add(x, y, 0.55, 2.2, 0.55);
+        else if (ch === 'o') add(x, y, 1, 0.8, 1);
+        else if (ch === 'T') add(x, y, 1.2, 3, 1.2);
+        else if (ch === 'g' || ch === 'D') add(x, y, 1, 2.2, 1);
+      }
+    }
+  }
+
+  sync(snapshot: WorldSnapshot, delta: number) {
     const time = snapshot.time;
     const p = snapshot.player;
     this.hero.root.position.x = p.x;
     this.hero.root.position.z = p.y;
-    this.hero.root.rotation.y = Math.atan2(p.facingX, p.facingY);
+    const targetYaw = Math.atan2(p.facingX, p.facingY);
+    let diff = targetYaw - this.heroVisualYaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    this.heroVisualYaw += diff * (1 - Math.exp(-delta * 6));
+    this.hero.root.rotation.y = this.heroVisualYaw;
     const action = p.action && p.actionProgress < 1 ? p.action : p.pose;
     animateRig(this.hero, {
       time,
@@ -802,31 +834,16 @@ export class World3D {
   }
 
   private updateCamera(dt: number, time: number) {
-    let targetX = this.hero.root.position.x;
-    let targetZ = this.hero.root.position.z;
-    if (this.cinematicTarget && time < this.cinematicTarget.until) {
-      targetX = THREE.MathUtils.lerp(targetX, this.cinematicTarget.x, 0.55);
-      targetZ = THREE.MathUtils.lerp(targetZ, this.cinematicTarget.z, 0.55);
-    } else this.cinematicTarget = null;
-    const clampedX = THREE.MathUtils.clamp(targetX, 5, MAP_W - 5);
-    const clampedZ = THREE.MathUtils.clamp(targetZ, 4, MAP_H - 4);
-    this.cameraTarget.x += (clampedX - this.cameraTarget.x) * (1 - Math.exp(-dt * 3.4));
-    this.cameraTarget.z += (clampedZ - this.cameraTarget.z) * (1 - Math.exp(-dt * 3.4));
-    const { width, height } = this.stage.size;
-    const portrait = height > width * 1.08;
-    const short = height <= 520;
-    const distance = portrait ? 33 : short ? 25 : width <= 720 ? 30 : 27;
+    if (this.cinematicTarget) {
+      this.cameraController.setCinematic(this.cinematicTarget.x, this.cinematicTarget.z, this.cinematicTarget.until);
+      if (time >= this.cinematicTarget.until) this.cinematicTarget = null;
+    } else {
+      this.cameraController.clearCinematic();
+    }
+    this.cameraController.update(dt, time, this.hero.root.position);
     const cam = this.stage.camera;
-    cam.position.set(this.cameraTarget.x + distance * 0.56, distance * 0.76, this.cameraTarget.z + distance * 0.56);
-    if (this.cameraShake > 0.001) {
-      cam.position.x += (this.rnd() - 0.5) * this.cameraShake;
-      cam.position.y += (this.rnd() - 0.5) * this.cameraShake * 0.6;
-      cam.position.z += (this.rnd() - 0.5) * this.cameraShake;
-      this.cameraShake *= Math.exp(-dt * 9);
-    } else this.cameraShake = 0;
-    cam.lookAt(this.cameraTarget.x, 1.0, this.cameraTarget.z);
-    this.stage.sun.position.set(this.cameraTarget.x - 12, 22, this.cameraTarget.z + 9);
-    this.stage.sun.target.position.set(this.cameraTarget.x, 0, this.cameraTarget.z);
+    this.stage.sun.position.set(cam.position.x - 12, 22, cam.position.z + 9);
+    this.stage.sun.target.position.set(cam.position.x, 0, cam.position.z);
     this.stage.sun.target.updateMatrixWorld();
   }
 

@@ -202,6 +202,11 @@ export class IsoScene extends Phaser.Scene {
   private materials: MaterialSet | null = null;
   private readonly originX = 800;
   private readonly originY = 70;
+  private lastMoveDir = { x: 0, y: 1 };
+  private lastOrbitX = 0;
+  private lastOrbitY = 0;
+  private orbitPointer: number | null = null;
+  private cameraListeners: (() => void)[] = [];
 
   constructor() {
     super('World');
@@ -314,6 +319,7 @@ export class IsoScene extends Phaser.Scene {
       this.world3D = new World3D(this.stage, this.zone, this.zoneId, this.materials);
       this.stage.resize(this.game.canvas);
       this.updateWorld3D(this.time.now, 0);
+      this.setupCameraInput();
       this.game.canvas.style.visibility = 'hidden';
       void sceneFadeIn(320);
     } catch (error) {
@@ -335,7 +341,7 @@ export class IsoScene extends Phaser.Scene {
 
   private updateWorld3D(time: number, delta: number) {
     if (!this.world3D || !this.stage) return;
-    this.world3D.sync(this.worldSnapshot(time));
+    this.world3D.sync(this.worldSnapshot(time), delta);
     this.world3D.update(time, delta);
     this.stage.render();
   }
@@ -636,6 +642,7 @@ export class IsoScene extends Phaser.Scene {
       dodgeUntil: 0, dodgeReady: 0, dodgeX: 0, dodgeY: 0,
       guardUntil: 0, hurtUntil: 0,
     };
+    this.lastMoveDir = { x: 0, y: 1 };
   }
 
   private spawnNpcs() {
@@ -863,6 +870,7 @@ export class IsoScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     if (!this.active) return;
+    if (this.world3D?.cameraController && this.isBusy()) this.world3D.cameraController.setOrbiting(false);
     const dt = Math.min(delta / 1000, 0.05);
     Save.data.playtime += dt;
     this.updateAmbient(time);
@@ -964,11 +972,30 @@ export class IsoScene extends Phaser.Scene {
   private updatePlayer(dt: number, time: number) {
     const p = this.player;
     const screenDir = Controls.dir;
-    const gridX = screenDir.x - screenDir.y;
-    const gridY = screenDir.x + screenDir.y;
-    const len = Math.hypot(gridX, gridY);
-    let dirX = len > 0.001 ? gridX / len : 0;
-    let dirY = len > 0.001 ? gridY / len : 0;
+    let dirX = 0;
+    let dirY = 0;
+    const cam = this.world3D?.cameraController;
+    if (cam && Math.hypot(screenDir.x, screenDir.y) > 0.01) {
+      const axes = cam.getMoveAxes();
+      const moveX = axes.forward.x * (-screenDir.y) + axes.right.x * screenDir.x;
+      const moveZ = axes.forward.z * (-screenDir.y) + axes.right.z * screenDir.x;
+      const len = Math.hypot(moveX, moveZ);
+      if (len > 0.01) {
+        dirX = moveX / len;
+        dirY = moveZ / len;
+        this.lastMoveDir = { x: dirX, y: dirY };
+      }
+    }
+    if (dirX === 0 && dirY === 0) {
+      const gridX = screenDir.x - screenDir.y;
+      const gridY = screenDir.x + screenDir.y;
+      const len = Math.hypot(gridX, gridY);
+      if (len > 0.001) {
+        dirX = gridX / len;
+        dirY = gridY / len;
+        this.lastMoveDir = { x: dirX, y: dirY };
+      }
+    }
     let speed = ISO_SPEED;
     if (Save.data.items.polar) speed *= 1.16;
 
@@ -1041,11 +1068,8 @@ export class IsoScene extends Phaser.Scene {
     let y = p.facingY;
     const d = Controls.dir;
     if (Math.hypot(d.x, d.y) > 0.1) {
-      const gx = d.x - d.y;
-      const gy = d.x + d.y;
-      const l = Math.hypot(gx, gy) || 1;
-      x = gx / l;
-      y = gy / l;
+      x = this.lastMoveDir.x;
+      y = this.lastMoveDir.y;
     }
     p.dodgeX = x;
     p.dodgeY = y;
@@ -1847,8 +1871,84 @@ export class IsoScene extends Phaser.Scene {
     this.stage?.resize(this.game.canvas);
   };
 
+  private isCameraUI(target: HTMLElement | null): boolean {
+    let el = target;
+    while (el) {
+      if (el.id === 'hud-buttons' || el.id === 'actionpad' || el.id === 'joystick' || el.id === 'quick-menu' || el.id === 'quick-toggle') return true;
+      if (el.hasAttribute && el.hasAttribute('data-act')) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  private setupCameraInput() {
+    const canvas = this.game.canvas;
+    const ctrl = this.world3D?.cameraController;
+    if (!ctrl) return;
+    const start = (e: PointerEvent) => {
+      if (!this.active || this.isBusy()) return;
+      if (e.pointerType === 'mouse') {
+        this.lastOrbitX = e.clientX;
+        this.lastOrbitY = e.clientY;
+        ctrl.setOrbiting(true);
+      } else if (e.pointerType === 'touch' && e.clientX > canvas.clientWidth / 2 && !this.isCameraUI(e.target as HTMLElement | null)) {
+        this.orbitPointer = e.pointerId;
+        this.lastOrbitX = e.clientX;
+        this.lastOrbitY = e.clientY;
+        ctrl.setOrbiting(true);
+      }
+    };
+    const move = (e: PointerEvent) => {
+      if (!ctrl) return;
+      if (e.pointerType === 'mouse') {
+        if (this.isBusy()) return;
+        ctrl.setOrbiting(true);
+        const dx = e.clientX - this.lastOrbitX;
+        const dy = e.clientY - this.lastOrbitY;
+        this.lastOrbitX = e.clientX;
+        this.lastOrbitY = e.clientY;
+        ctrl.handlePointerMove(dx, dy);
+        return;
+      }
+      if (e.pointerId !== this.orbitPointer) return;
+      const dx = e.clientX - this.lastOrbitX;
+      const dy = e.clientY - this.lastOrbitY;
+      this.lastOrbitX = e.clientX;
+      this.lastOrbitY = e.clientY;
+      ctrl.handlePointerMove(dx, dy);
+    };
+    const end = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      if (this.orbitPointer !== null && ctrl) ctrl.setOrbiting(false);
+      this.orbitPointer = null;
+    };
+    const enter = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && !this.isBusy() && ctrl) {
+        this.lastOrbitX = e.clientX;
+        this.lastOrbitY = e.clientY;
+        ctrl.setOrbiting(true);
+      }
+    };
+    canvas.addEventListener('pointerdown', start, { passive: false });
+    canvas.addEventListener('pointermove', move, { passive: false });
+    canvas.addEventListener('pointerenter', enter, { passive: false });
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    canvas.addEventListener('wheel', (e) => { ctrl.handleWheel(e.deltaY); }, { passive: false });
+    this.cameraListeners.push(() => {
+      canvas.removeEventListener('pointerdown', start);
+      canvas.removeEventListener('pointermove', move);
+      canvas.removeEventListener('pointerenter', enter);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      canvas.removeEventListener('wheel', (e) => { ctrl.handleWheel(e.deltaY); });
+    });
+  }
+
   private cleanup() {
     this.active = false;
+    this.cameraListeners.forEach((unlisten) => unlisten());
+    this.cameraListeners = [];
     window.removeEventListener('game-quit-menu', this.handleQuitMenuEvent);
     window.removeEventListener('game-lens', this.handleLensEvent);
     window.removeEventListener('game-quality-change', this.handleQualityEvent);
