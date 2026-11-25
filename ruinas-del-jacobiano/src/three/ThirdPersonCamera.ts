@@ -19,12 +19,12 @@ export class ThirdPersonCamera {
   private colliders: THREE.Box3[] = [];
   private orbiting = false;
   private yaw = 0;
-  private pitch = -0.35;
-  private distance = 24;
-  private targetDistance = 24;
-  private minDistance = 10;
-  private maxDistance = 40;
-  private height = 5.6;
+  private pitch = 0.55;
+  private distance = 16;
+  private targetDistance = 16;
+  private minDistance = 8;
+  private maxDistance = 32;
+  private height = 4.6;
   private sensitivity = 0.0022;
   private followSpeed = 7;
   private eye = new THREE.Vector3();
@@ -59,7 +59,7 @@ export class ThirdPersonCamera {
     if (!this.orbiting) return;
     this.yaw -= dx * this.sensitivity;
     this.pitch -= dy * this.sensitivity;
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -1.3, 0.55);
+    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.2, 1.1);
   }
 
   handleWheel(delta: number) {

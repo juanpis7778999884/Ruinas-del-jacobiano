@@ -1885,9 +1885,11 @@ export class IsoScene extends Phaser.Scene {
     const canvas = this.game.canvas;
     const ctrl = this.world3D?.cameraController;
     if (!ctrl) return;
+    let mouseDown = false;
     const start = (e: PointerEvent) => {
       if (!this.active || this.isBusy()) return;
       if (e.pointerType === 'mouse') {
+        mouseDown = true;
         this.lastOrbitX = e.clientX;
         this.lastOrbitY = e.clientY;
         ctrl.setOrbiting(true);
@@ -1901,8 +1903,7 @@ export class IsoScene extends Phaser.Scene {
     const move = (e: PointerEvent) => {
       if (!ctrl) return;
       if (e.pointerType === 'mouse') {
-        if (this.isBusy()) return;
-        ctrl.setOrbiting(true);
+        if (!mouseDown || this.isBusy()) return;
         const dx = e.clientX - this.lastOrbitX;
         const dy = e.clientY - this.lastOrbitY;
         this.lastOrbitX = e.clientX;
@@ -1918,12 +1919,20 @@ export class IsoScene extends Phaser.Scene {
       ctrl.handlePointerMove(dx, dy);
     };
     const end = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse') return;
+      if (e.pointerType === 'mouse') {
+        mouseDown = false;
+        if (ctrl) ctrl.setOrbiting(false);
+        return;
+      }
       if (this.orbitPointer !== null && ctrl) ctrl.setOrbiting(false);
       this.orbitPointer = null;
     };
+    const leave = () => {
+      mouseDown = false;
+      if (ctrl) ctrl.setOrbiting(false);
+    };
     const enter = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' && !this.isBusy() && ctrl) {
+      if (e.pointerType === 'mouse' && mouseDown && !this.isBusy() && ctrl) {
         this.lastOrbitX = e.clientX;
         this.lastOrbitY = e.clientY;
         ctrl.setOrbiting(true);
@@ -1932,16 +1941,19 @@ export class IsoScene extends Phaser.Scene {
     canvas.addEventListener('pointerdown', start, { passive: false });
     canvas.addEventListener('pointermove', move, { passive: false });
     canvas.addEventListener('pointerenter', enter, { passive: false });
+    canvas.addEventListener('pointerleave', leave, { passive: false });
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
-    canvas.addEventListener('wheel', (e) => { ctrl.handleWheel(e.deltaY); }, { passive: false });
+    const wheelHandler = (e: WheelEvent) => { ctrl.handleWheel(e.deltaY); };
+    canvas.addEventListener('wheel', wheelHandler, { passive: false });
     this.cameraListeners.push(() => {
       canvas.removeEventListener('pointerdown', start);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerenter', enter);
+      canvas.removeEventListener('pointerleave', leave);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
-      canvas.removeEventListener('wheel', (e) => { ctrl.handleWheel(e.deltaY); });
+      canvas.removeEventListener('wheel', wheelHandler);
     });
   }
 
