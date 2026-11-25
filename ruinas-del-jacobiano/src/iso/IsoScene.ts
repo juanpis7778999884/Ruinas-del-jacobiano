@@ -122,6 +122,8 @@ interface Projectile {
 interface PlayerState {
   x: number;
   y: number;
+  velX: number;
+  velY: number;
   stamina: number;
   sprite: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Image;
@@ -184,7 +186,11 @@ export class IsoScene extends Phaser.Scene {
   private journalOpen = false;
   private nextHud = 0;
   private nextSave = 0;
+  private nextWaterFrame = 0;
   private hitStopUntil = 0;
+  private cameraReady = false;
+  private waterTiles: { img: Phaser.GameObjects.Image; phase: number }[] = [];
+  private foliage: Phaser.GameObjects.Image[] = [];
   private readonly originX = 800;
   private readonly originY = 70;
 
@@ -218,11 +224,14 @@ export class IsoScene extends Phaser.Scene {
 
     document.body.classList.add('playing');
     mountHud();
+    Controls.refreshBindings();
     Audio.unlock();
     Audio.setTrack(this.zone.ambience);
 
-    this.cameras.main.setBackgroundColor(ISO_BG);
-    this.cameras.main.setZoom(ISO_CAMERA_ZOOM);
+    this.waterTiles = [];
+    this.foliage = [];
+    this.nextWaterFrame = 0;
+    this.cameraReady = false;
     this.buildMap();
     this.placeMissingEntities();
     this.createPlayer();
@@ -231,24 +240,12 @@ export class IsoScene extends Phaser.Scene {
     this.spawnBoss();
     this.createAtmosphere();
     this.createLensGrid();
-
-    const corners = [
-      this.screenFor(0, 0),
-      this.screenFor(MAP_W, 0),
-      this.screenFor(0, MAP_H),
-      this.screenFor(MAP_W, MAP_H),
-    ];
-    const minX = Math.min(...corners.map((p) => p.x)) - 160;
-    const maxX = Math.max(...corners.map((p) => p.x)) + 160;
-    const minY = Math.min(...corners.map((p) => p.y)) - 220;
-    const maxY = Math.max(...corners.map((p) => p.y)) + 180;
-    this.cameras.main.setBounds(minX, minY, maxX - minX, maxY - minY);
-    this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
-    this.cameras.main.setDeadzone(140, 90);
-    this.cameras.main.fadeIn(320, 8, 8, 20);
+    this.configureCamera();
 
     window.addEventListener('game-quit-menu', this.handleQuitMenuEvent);
     window.addEventListener('game-lens', this.handleLensEvent);
+    window.addEventListener('resize', this.handleResize);
+    window.addEventListener('orientationchange', this.handleResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
 
     Save.data.currentZone = this.zoneId;
@@ -268,26 +265,71 @@ export class IsoScene extends Phaser.Scene {
     return this.screenFor(x + 0.5, y + 0.5);
   }
 
+  private configureCamera() {
+    const w = window.innerWidth || GAME_W;
+    const h = window.innerHeight || GAME_H;
+    const portrait = h > w * 1.08;
+    const short = h <= 520;
+    const narrow = w <= 720;
+    const zoom = portrait ? 0.76 : short ? 0.88 : narrow ? 0.86 : ISO_CAMERA_ZOOM;
+    const cam = this.cameras.main;
+    const corners = [
+      this.screenFor(0, 0),
+      this.screenFor(MAP_W, 0),
+      this.screenFor(0, MAP_H),
+      this.screenFor(MAP_W, MAP_H),
+    ];
+    const minX = Math.min(...corners.map((p) => p.x)) - 160;
+    const maxX = Math.max(...corners.map((p) => p.x)) + 160;
+    const minY = Math.min(...corners.map((p) => p.y)) - 220;
+    const maxY = Math.max(...corners.map((p) => p.y)) + 180;
+    cam.setBackgroundColor(ISO_BG);
+    cam.setZoom(zoom);
+    cam.setBounds(minX, minY, maxX - minX, maxY - minY);
+    cam.startFollow(this.player.sprite, true, portrait ? 0.09 : 0.11, portrait ? 0.09 : 0.11);
+    cam.setDeadzone(portrait ? 190 : short ? 230 : 200, portrait ? 130 : short ? 90 : 115);
+    cam.setFollowOffset(0, portrait ? 26 : 0);
+    if (!this.cameraReady) {
+      cam.fadeIn(320, 8, 8, 20);
+      this.cameraReady = true;
+    }
+  }
+
   private buildMap() {
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
         const ch = charAt(this.zone, x, y);
         const p = this.tileCenter(x, y);
-        const floorKey = ch === '~' ? 'iso_water'
+        const isBridge = this.zoneId === 'valle' && ch === '=' && [
+          [1, 0], [-1, 0], [0, 1], [0, -1],
+        ].some(([dx, dy]) => charAt(this.zone, x + dx, y + dy) === '~');
+        const floorKey = ch === '~' ? `iso_water${(x + y) % 4}`
+          : isBridge ? 'iso_bridge'
           : ch === '=' ? 'iso_path'
           : ch === ',' || ch === '*' ? 'iso_moss'
           : ch === 'D' || ch === 'g' ? 'iso_secret'
           : ch === '^' || ch === 'v' ? 'iso_stairs'
-          : `iso_floor${(x * 7 + y * 3) % 4}`;
-        this.add.image(p.x, p.y, floorKey)
+          : `iso_floor_${this.zone.tileset}${(x * 7 + y * 3) % 4}`;
+        const floor = this.add.image(p.x, p.y, floorKey)
           .setOrigin(0.5)
           .setDepth(isoDepth(x, y, DEPTH_FLOOR));
+        if (ch === '~') this.waterTiles.push({ img: floor, phase: (x + y) % 4 });
 
         if (ch === '*') {
-          this.add.image(p.x, p.y - 4, 'iso_flowers')
+          const flowers = this.add.image(p.x, p.y - 4, 'iso_flowers')
             .setOrigin(0.5, 0.9)
             .setAlpha(0.85)
             .setDepth(isoDepth(x + 0.5, y + 0.5, DEPTH_DECAL));
+          this.tweens.add({ targets: flowers, angle: { from: -2, to: 2 }, duration: 2400 + (x * 13 + y * 7) % 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        }
+        if ((ch === '.' || ch === ',') && (x * 13 + y * 7) % 37 === 0 && !(Math.abs(x - this.spawn.x) <= 1 && Math.abs(y - this.spawn.y) <= 1)) {
+          const bush = this.add.image(p.x + 4, p.y + 3, `iso_bush${(x + y) % 2}`)
+            .setOrigin(0.5, 0.86)
+            .setScale(0.72)
+            .setAlpha(0.85)
+            .setDepth(isoDepth(x + 0.5, y + 0.5, DEPTH_DECAL));
+          this.foliage.push(bush);
+          this.tweens.add({ targets: bush, angle: { from: -2, to: 2 }, duration: 2000 + (x * 17 + y * 3) % 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         }
         if (ch === '#') {
           this.add.image(p.x, p.y, `iso_wall${(x * 3 + y) % 4}`)
@@ -298,9 +340,11 @@ export class IsoScene extends Phaser.Scene {
             .setOrigin(0.5, 0.88)
             .setDepth(isoDepth(x + 0.5, y + 0.5, DEPTH_PROP));
         } else if (ch === 'T') {
-          this.add.image(p.x, p.y + 6, `iso_tree${(x * 5 + y) % 3}`)
+          const tree = this.add.image(p.x, p.y + 6, `iso_tree${(x * 5 + y) % 3}`)
             .setOrigin(0.5, 0.86)
             .setDepth(isoDepth(x + 0.5, y + 0.5, DEPTH_PROP));
+          this.foliage.push(tree);
+          this.tweens.add({ targets: tree, angle: { from: -1.4, to: 1.4 }, duration: 2600 + (x * 11 + y * 5) % 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         } else if (ch === 'o') {
           this.add.image(p.x, p.y + 2, `iso_rock${(x + y) % 2}`)
             .setOrigin(0.5, 0.84)
@@ -475,7 +519,7 @@ export class IsoScene extends Phaser.Scene {
       .setScale(1.12)
       .setDepth(isoDepth(px, py, DEPTH_ENTITY));
     this.player = {
-      x: px, y: py, stamina: 100, sprite, shadow,
+      x: px, y: py, velX: 0, velY: 0, stamina: 100, sprite, shadow,
       facingX: 0, facingY: 1,
       pose: 'idle', poseUntil: 0,
       attackStart: 0, attackDuration: 0, attackReady: 0, attackHeavy: false,
@@ -574,31 +618,73 @@ export class IsoScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDisplaySize(GAME_W, GAME_H)
       .setDepth(DEPTH_AIR)
-      .setAlpha(0.85);
+      .setAlpha(0.82);
     const fog = this.add.image(0, 0, 'iso_fog')
       .setOrigin(0)
       .setScrollFactor(0)
       .setDisplaySize(GAME_W, GAME_H)
       .setDepth(DEPTH_AIR)
-      .setAlpha(0.5);
-    this.tweens.add({ targets: fog, alpha: 0.22, duration: 4200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    const tint = this.zone.ambience === 'sanctum' ? 0xb38bff
-      : this.zone.ambience === 'river' ? 0x8dffd8
-      : this.zone.ambience === 'city' ? 0xffd166
-      : 0x9dffd6;
-    this.add.particles(0, 0, 'iso_dot', {
-      x: { min: 0, max: GAME_W },
-      y: { min: 0, max: GAME_H },
-      speed: { min: 2, max: 12 },
+      .setAlpha(0.45);
+    this.tweens.add({ targets: fog, alpha: 0.2, duration: 4200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    const corners = [
+      this.screenFor(0, 0), this.screenFor(MAP_W, 0),
+      this.screenFor(0, MAP_H), this.screenFor(MAP_W, MAP_H),
+    ];
+    const minX = Math.min(...corners.map((p) => p.x)) - 80;
+    const maxX = Math.max(...corners.map((p) => p.x)) + 80;
+    const minY = Math.min(...corners.map((p) => p.y)) - 140;
+    const maxY = Math.max(...corners.map((p) => p.y)) + 120;
+    const moteTint = this.zone.ambience === 'sanctum' ? [0xb38bff, 0xe0aaff]
+      : this.zone.ambience === 'river' ? [0x8dffd8, 0x9fe0ff]
+      : this.zone.ambience === 'city' ? [0xffd166, 0xffe9a3]
+      : [0x9dffd6, 0xd8ffb0];
+    const leafTint = this.zone.ambience === 'city' ? [0xb08a4a, 0xd7b45c]
+      : this.zone.ambience === 'sanctum' ? [0x8a6bc9, 0xb38bff]
+      : [0x4f9e58, 0x8fd06a, 0xc9a24a];
+
+    this.add.particles(0, 0, 'iso_mote', {
+      x: { min: minX, max: maxX },
+      y: { min: minY, max: maxY },
+      speed: { min: 3, max: 15 },
       angle: { min: 200, max: 340 },
-      lifespan: { min: 2200, max: 4600 },
-      frequency: 120,
+      lifespan: { min: 2600, max: 5200 },
+      frequency: 150,
       quantity: 1,
-      scale: { start: 0.45, end: 0 },
-      alpha: { start: 0.5, end: 0 },
-      tint,
-      blendMode: 'ADD',
-    }).setScrollFactor(0).setDepth(DEPTH_AIR);
+      scale: { start: 0.55, end: 0 },
+      alpha: { start: 0.7, end: 0 },
+      tint: moteTint,
+      blendMode: Phaser.BlendModes.ADD,
+    }).setDepth(DEPTH_AIR);
+
+    this.add.particles(0, 0, 'iso_leaf', {
+      x: { min: minX, max: maxX },
+      y: { min: minY, max: maxY },
+      speedX: { min: -18, max: 12 },
+      speedY: { min: 8, max: 26 },
+      lifespan: { min: 4200, max: 7600 },
+      frequency: this.zone.ambience === 'town' || this.zone.ambience === 'grove' ? 260 : 420,
+      quantity: 1,
+      scale: { start: 0.7, end: 0.35 },
+      alpha: { start: 0.8, end: 0 },
+      rotate: { min: 0, max: 360 },
+      tint: leafTint,
+    }).setDepth(DEPTH_AIR);
+
+    if (this.zone.ambience === 'river' || this.zone.ambience === 'sanctum') {
+      this.add.particles(0, 0, 'iso_ember', {
+        x: { min: minX, max: maxX },
+        y: { min: minY + 160, max: maxY },
+        speedY: { min: -22, max: -8 },
+        lifespan: { min: 1400, max: 2800 },
+        frequency: 320,
+        quantity: 1,
+        scale: { start: 0.6, end: 0 },
+        alpha: { start: 0.85, end: 0 },
+        tint: moteTint,
+        blendMode: Phaser.BlendModes.ADD,
+      }).setDepth(DEPTH_AIR);
+    }
   }
 
   private createLensGrid() {
@@ -670,7 +756,14 @@ export class IsoScene extends Phaser.Scene {
     if (!this.active) return;
     const dt = Math.min(delta / 1000, 0.05);
     Save.data.playtime += dt;
-    if (this.isBusy()) return;
+    this.updateAmbient(time);
+    if (this.isBusy()) {
+      if (this.player) {
+        this.player.velX = 0;
+        this.player.velY = 0;
+      }
+      return;
+    }
 
     this.handleInput(time);
     this.updatePlayer(dt, time);
@@ -684,7 +777,7 @@ export class IsoScene extends Phaser.Scene {
     this.updatePrompt();
 
     if (time >= this.nextHud) {
-      this.nextHud = time + 90;
+      this.nextHud = time + 160;
       updateHud({
         zone: this.zoneId,
         hp: Save.data.hearts,
@@ -708,6 +801,19 @@ export class IsoScene extends Phaser.Scene {
       Save.data.position[this.zoneId] = { x: this.player.x, y: this.player.y };
       Save.save();
     }
+  }
+
+  private updateAmbient(time: number) {
+    if (time < this.nextWaterFrame) return;
+    this.nextWaterFrame = time + 230;
+    for (const tile of this.waterTiles) {
+      tile.phase = (tile.phase + 1) % 4;
+      tile.img.setTexture(`iso_water${tile.phase}`);
+    }
+  }
+
+  private shakeCamera(duration: number, intensity: number) {
+    if (Save.data.settings.shake) this.cameras.main.shake(duration, intensity);
   }
 
   private isBusy(): boolean {
@@ -754,14 +860,29 @@ export class IsoScene extends Phaser.Scene {
     let speed = ISO_SPEED;
     if (Save.data.items.polar) speed *= 1.16;
 
-    if (time < p.dodgeUntil) {
+    const dodging = time < p.dodgeUntil;
+    if (dodging) {
       dirX = p.dodgeX;
       dirY = p.dodgeY;
       speed *= Save.data.equipped.relic === 'brujula_giros' ? 2.5 : 2.15;
       if (Save.data.equipped.relic === 'brujula_giros') this.setStamina(this.stamina() + 18 * dt);
+      p.velX = dirX * speed;
+      p.velY = dirY * speed;
+    } else {
+      const accel = 1 - Math.exp(-dt * (dirX || dirY ? 15 : 19));
+      p.velX += (dirX * speed - p.velX) * accel;
+      p.velY += (dirY * speed - p.velY) * accel;
+      if (Math.hypot(p.velX, p.velY) < 0.015) {
+        p.velX = 0;
+        p.velY = 0;
+      }
     }
+    const beforeX = p.x;
+    const beforeY = p.y;
+    this.moveWithCollision(p, p.velX * dt, p.velY * dt, ISO_PLAYER_R);
+    if (Math.abs(p.x - beforeX) < 1e-6) p.velX = 0;
+    if (Math.abs(p.y - beforeY) < 1e-6) p.velY = 0;
     if (dirX !== 0 || dirY !== 0) {
-      this.moveWithCollision(p, dirX * speed * dt, dirY * speed * dt, ISO_PLAYER_R);
       p.facingX = dirX;
       p.facingY = dirY;
     }
@@ -782,7 +903,7 @@ export class IsoScene extends Phaser.Scene {
       ? 'side'
       : p.facingY < 0 ? 'back' : 'front';
     let frame = 0;
-    if (p.pose === 'walk') frame = Math.floor(time / 115) % 4;
+    if (p.pose === 'walk') frame = Math.floor(time / (Math.hypot(p.velX, p.velY) > ISO_SPEED * 1.3 ? 84 : 112)) % 4;
     else if (p.pose === 'attack') {
       const t = clamp((time - p.attackStart) / Math.max(1, p.attackDuration), 0, 0.99);
       frame = Math.min(2, Math.floor(t * 3));
@@ -920,7 +1041,7 @@ export class IsoScene extends Phaser.Scene {
     enemy.sprite.setTint(0xffffff);
     this.moveWithCollision(enemy, kx * knock, ky * knock, 0.28);
     this.burst(enemy.x, enemy.y, 0xffd166, 8);
-    this.cameras.main.shake(80, 0.0015);
+    this.shakeCamera(80, 0.0015);
     this.hitStopUntil = this.time.now + 34;
     Audio.play('hit');
     if (enemy.hp <= 0) this.killEnemy(enemy);
@@ -1110,7 +1231,7 @@ export class IsoScene extends Phaser.Scene {
           this.spawnProjectile(sx, sy, this.player.x, this.player.y, 3.6, 1, true, 0x8dffd8);
         }
       }
-      this.cameras.main.shake(260, 0.004);
+      this.shakeCamera(260, 0.004);
     }
   }
 
@@ -1134,7 +1255,7 @@ export class IsoScene extends Phaser.Scene {
     b.flashUntil = this.time.now + 120;
     this.moveWithCollision(b, kx * 0.12, ky * 0.12, 0.52);
     this.burst(b.x, b.y, 0xff70d0, 12);
-    this.cameras.main.shake(140, 0.003);
+    this.shakeCamera(140, 0.003);
     Audio.play('bossHit');
     if (b.hp <= 0) void this.advanceBossPhase();
   }
@@ -1264,7 +1385,7 @@ export class IsoScene extends Phaser.Scene {
     p.pose = 'hurt';
     const len = Math.hypot(kx, ky) || 1;
     this.moveWithCollision(p, (kx / len) * 0.4, (ky / len) * 0.4, ISO_PLAYER_R);
-    if (Save.data.settings.shake) this.cameras.main.shake(120, 0.0035);
+    this.shakeCamera(120, 0.0035);
     if (Save.data.hearts <= 0) this.die();
     Save.save();
   }
@@ -1587,10 +1708,16 @@ export class IsoScene extends Phaser.Scene {
     if (this.active && !this.isBusy()) this.toggleLens();
   };
 
+  private readonly handleResize = () => {
+    if (this.active && this.player) this.configureCamera();
+  };
+
   private cleanup() {
     this.active = false;
     window.removeEventListener('game-quit-menu', this.handleQuitMenuEvent);
     window.removeEventListener('game-lens', this.handleLensEvent);
+    window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('orientationchange', this.handleResize);
     document.body.classList.remove('playing');
     hideHud();
     setPrompt('');

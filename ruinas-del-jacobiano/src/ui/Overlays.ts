@@ -2,11 +2,13 @@ import { GAME_H } from '../config';
 import { QUESTS } from '../data/story';
 import { ITEMS, ZONES, ZONE_ORDER, charAt } from '../data/zones';
 import { ItemId, QuestId, RelicId, ZoneId } from '../data/types';
+import { ACTION_LABELS, getKeyBindings, keyLabel } from '../systems/actions';
+import type { Action } from '../systems/actions';
 import { Audio } from '../systems/Audio';
 import { Controls } from '../systems/Controls';
 import { Save } from '../systems/SaveSystem';
 
-export type PanelKind = 'inventory' | 'map' | 'quests' | 'pause' | 'death' | 'credits';
+export type PanelKind = 'inventory' | 'map' | 'quests' | 'pause' | 'death' | 'credits' | 'controls';
 
 interface PanelContext {
   zone: ZoneId;
@@ -16,12 +18,24 @@ interface PanelContext {
 }
 
 let current: { kind: PanelKind; el: HTMLElement } | null = null;
+let waitingRebind: Action | null = null;
+let rebindListener: ((e: KeyboardEvent) => void) | null = null;
+let escListener: ((e: KeyboardEvent) => void) | null = null;
 
 export function isOverlayOpen(): boolean {
   return current !== null;
 }
 
 export function closePanel() {
+  if (rebindListener) {
+    window.removeEventListener('keydown', rebindListener, true);
+    rebindListener = null;
+  }
+  if (escListener) {
+    window.removeEventListener('keydown', escListener, true);
+    escListener = null;
+  }
+  waitingRebind = null;
   if (!current) return;
   const kind = current.kind;
   current.el.remove();
@@ -152,8 +166,33 @@ function pauseHtml(): string {
       <label><input type="checkbox" id="set-shake" ${s.shake ? 'checked' : ''}> Sacudida de cámara</label>
     </div>
     <div class="panel-actions">
+      <button data-panel="controls">Controles y ayuda</button>
       <button data-panel="credits">Créditos</button>
       <button data-action="menu">Guardar y volver al menú</button>
+    </div>`;
+}
+
+function controlsHtml(ctx: PanelContext): string {
+  const bindings = getKeyBindings(Save.data.settings.keymap);
+  const rows = (Object.keys(ACTION_LABELS) as Action[]).map((a) => `
+    <div class="keymap-row">
+      <span>${ACTION_LABELS[a]}</span>
+      <button type="button" data-rebind="${a}" aria-label="Reasignar ${ACTION_LABELS[a]}">${bindings[a].map(keyLabel).join(' / ')}</button>
+    </div>`).join('');
+  return `<h2>Controles y ayuda</h2>
+    <p class="muted">Pulsa una tecla junto al botón de una acción para reasignarla. Esc cancela. Los controles táctiles no se modifican.</p>
+    <div class="keymap-grid">${rows}</div>
+    <div class="panel-actions">
+      <button data-action="reset-keys">Restablecer teclas</button>
+      <button data-panel="credits">Créditos</button>
+      <button data-action="${ctx.fromMenu ? 'close' : 'pauseBack'}">${ctx.fromMenu ? 'Cerrar' : 'Volver'}</button>
+    </div>
+    <h3>Guía rápida</h3>
+    <div class="help-grid">
+      <div><b>Movimiento</b><span>WASD / flechas · joystick analógico</span></div>
+      <div><b>Combate</b><span>Ataque, golpe fuerte, esquiva y defensa son independientes en el panel derecho</span></div>
+      <div><b>Accesos</b><span>☰ despliega inventario, mapa, misiones, fórmulas, lente, curación y pausa</span></div>
+      <div><b>Multitouch</b><span>Puedes moverte y atacar a la vez; cada dedo controla un botón distinto</span></div>
     </div>`;
 }
 
@@ -188,6 +227,7 @@ export function openPanel(kind: PanelKind, ctx: PanelContext) {
     : kind === 'quests' ? questsHtml()
     : kind === 'pause' ? pauseHtml()
     : kind === 'death' ? deathHtml()
+    : kind === 'controls' ? controlsHtml(ctx)
     : creditsHtml(!!ctx.fromMenu);
   const tabs = kind === 'inventory' || kind === 'map' || kind === 'quests'
     ? `<nav class="panel-tabs">
@@ -219,7 +259,18 @@ export function openPanel(kind: PanelKind, ctx: PanelContext) {
       else if (a === 'menu') {
         closePanel();
         window.dispatchEvent(new CustomEvent('game-quit-menu'));
+      } else if (a === 'reset-keys') {
+        Controls.resetBindings();
+        Audio.play('ui');
+        openPanel('controls', ctx);
       }
+      return;
+    }
+    const rebindBtn = target.closest<HTMLButtonElement>('[data-rebind]');
+    if (rebindBtn) {
+      waitingRebind = rebindBtn.dataset.rebind as Action;
+      rebindBtn.textContent = 'Pulsa una tecla…';
+      rebindBtn.classList.add('listening');
       return;
     }
     const item = target.closest<HTMLButtonElement>('[data-item]');
@@ -259,14 +310,26 @@ export function openPanel(kind: PanelKind, ctx: PanelContext) {
     if ((e.target as HTMLElement).closest('.panel-card') === null && kind !== 'death') closePanel();
   });
 
-  const esc = (e: KeyboardEvent) => {
+  rebindListener = (e: KeyboardEvent) => {
+    if (!waitingRebind) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const action = waitingRebind;
+    waitingRebind = null;
+    if (e.code !== 'Escape') Controls.rebind(action, e.code);
+    Audio.play('ui');
+    openPanel('controls', ctx);
+  };
+  window.addEventListener('keydown', rebindListener, true);
+
+  escListener = (e: KeyboardEvent) => {
+    if (waitingRebind) return;
     if (e.code === 'Escape' || (kind === 'pause' && e.code === 'Enter')) {
       e.preventDefault();
-      window.removeEventListener('keydown', esc, true);
-      if (kind === 'pause' || kind === 'inventory' || kind === 'map' || kind === 'quests' || kind === 'credits') closePanel();
+      if (kind === 'pause' || kind === 'inventory' || kind === 'map' || kind === 'quests' || kind === 'credits' || kind === 'controls') closePanel();
     }
   };
-  window.addEventListener('keydown', esc, true);
+  window.addEventListener('keydown', escListener, true);
   setTimeout(() => overlay.querySelector<HTMLButtonElement>('button')?.focus(), 30);
 }
 

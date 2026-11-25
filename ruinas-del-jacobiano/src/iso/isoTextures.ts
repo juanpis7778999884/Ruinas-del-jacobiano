@@ -86,74 +86,114 @@ const SUBS = [
   { cx: 32, cy: 8 }, { cx: 48, cy: 16 }, { cx: 16, cy: 16 }, { cx: 32, cy: 24 },
 ];
 
-function floorTexture(scene: Phaser.Scene, key: string, base: number, seed: number, kind: 'stone' | 'moss' | 'path' | 'water' | 'secret' | 'bridge' | 'stair') {
+function floorTexture(scene: Phaser.Scene, key: string, base: number, seed: number, kind: 'stone' | 'moss' | 'path' | 'water' | 'secret' | 'bridge' | 'stair', phase = 0) {
   make(scene, key, T, H, (g) => {
     const rand = rng(seed * 7919 + 13);
-    const grout = shade(base, -18);
+    const grout = shade(base, -28);
     SUBS.forEach((s, i) => {
-      const v = shade(base, ((i + seed) % 3 - 1) * 7 + Math.round((rand() - 0.5) * 8));
+      const v = shade(base, ((i + seed) % 3 - 1) * 9 + Math.round((rand() - 0.5) * 12));
       diamond(g, s.cx, s.cy, 32, 16, v);
       diamond(g, s.cx, s.cy, 32, 16, undefined, grout);
+      g.fillStyle(mix(v, 0xffffff, 0.16), 0.5);
+      poly(g, [s.cx - 14, s.cy, s.cx, s.cy - 7, s.cx + 2, s.cy - 6, s.cx - 12, s.cy + 1]);
+      g.fillStyle(mix(v, 0x0a0d1a, 0.3), 0.45);
+      poly(g, [s.cx - 14, s.cy, s.cx, s.cy + 7, s.cx + 12, s.cy, s.cx, s.cy + 5]);
     });
 
-    if (kind === 'stone' || kind === 'secret') {
+    if (kind === 'stone' || kind === 'secret' || kind === 'stair') {
       if (seed % 3 === 0) {
-        seg(g, 8, 12, 20, 20, shade(base, -40));
-        seg(g, 20, 20, 27, 19, shade(base, -40));
+        seg(g, 8, 12, 20, 20, shade(base, -46));
+        seg(g, 20, 20, 27, 19, shade(base, -46));
+        seg(g, 9, 13, 19, 19, shade(base, 22), 1);
       } else if (seed % 3 === 1) {
-        seg(g, 44, 10, 40, 22, shade(base, -40));
-        seg(g, 40, 22, 34, 26, shade(base, -40));
+        seg(g, 44, 10, 40, 22, shade(base, -46));
+        seg(g, 40, 22, 34, 26, shade(base, -46));
+        seg(g, 43, 11, 40, 21, shade(base, 22), 1);
       } else {
-        seg(g, 30, 4, 33, 14, shade(base, -40));
+        seg(g, 30, 4, 33, 14, shade(base, -46));
+        seg(g, 31, 5, 33, 13, shade(base, 22), 1);
       }
-      for (let i = 0; i < 5; i++) {
-        const x = 6 + rand() * 50, y = 5 + rand() * 20;
-        g.fillStyle(shade(base, 16));
-        g.fillRect(x, y, 2, 1);
+      for (let i = 0; i < 9; i++) {
+        const x = 5 + rand() * 54, y = 4 + rand() * 24;
+        g.fillStyle(i % 3 === 0 ? shade(base, 26) : shade(base, -20), 0.7);
+        g.fillRect(x, y, rand() > 0.7 ? 2 : 1, 1);
+      }
+      if (seed % 2 === 0) {
+        g.fillStyle(0x3f8050, 0.32);
+        g.fillEllipse(10 + rand() * 44, 10 + rand() * 14, 8, 4);
       }
     }
     if (kind === 'moss') {
-      g.fillStyle(0x3f8050, 0.55);
-      g.fillEllipse(14, 14, 13, 7);
-      g.fillEllipse(39, 11, 11, 6);
-      g.fillStyle(0x62b267, 0.4);
+      g.fillStyle(0x2c6238, 0.65);
+      g.fillEllipse(14, 14, 15, 8);
+      g.fillEllipse(39, 11, 13, 7);
+      g.fillStyle(0x3f8050, 0.72);
+      g.fillEllipse(16, 13, 11, 6);
+      g.fillEllipse(42, 12, 10, 5);
+      g.fillStyle(0x7bd07a, 0.45);
       g.fillEllipse(45, 24, 10, 5);
-      for (let i = 0; i < 4; i++) g.fillRect(6 + rand() * 50, 6 + rand() * 20, 2, 1);
+      g.fillEllipse(24, 22, 7, 4);
+      for (let i = 0; i < 7; i++) {
+        g.fillStyle(i % 2 ? 0x9ade7f : 0x4f9e58, 0.8);
+        g.fillRect(5 + rand() * 52, 6 + rand() * 21, 2, 1);
+      }
     }
     if (kind === 'path') {
-      g.fillStyle(shade(base, 14), 0.5);
-      g.fillEllipse(32, 16, 34, 15);
-      g.fillStyle(shade(base, -16), 0.5);
+      g.fillStyle(mix(base, 0xd8c79a, 0.35), 0.62);
+      g.fillEllipse(32, 16, 38, 17);
+      g.fillStyle(shade(base, 20), 0.5);
+      g.fillEllipse(26, 13, 16, 7);
+      g.fillStyle(shade(base, -20), 0.4);
       g.fillEllipse(24, 20, 7, 3);
       g.fillEllipse(42, 11, 6, 3);
+      for (let i = 0; i < 5; i++) {
+        g.fillStyle(0x6b5a3b, 0.35);
+        g.fillRect(12 + rand() * 40, 8 + rand() * 17, 2, 1);
+      }
     }
     if (kind === 'water') {
-      diamond(g, 32, 16, 62, 30, 0x23517f, 0x163959, 2);
-      diamond(g, 32, 16, 48, 23, 0x2f6ba8);
-      g.fillStyle(0x8fd3ff, 0.6);
-      g.fillRect(18, 13, 10, 1);
-      g.fillRect(30, 20, 8, 1);
-      g.fillRect(40, 10, 6, 1);
-      g.fillStyle(0x0f2b4d, 0.4);
-      g.fillRect(24, 25, 12, 1);
+      diamond(g, 32, 16, 62, 30, 0x1b436b, 0x102d4c, 2);
+      diamond(g, 32, 16, 50, 24, 0x276195);
+      diamond(g, 32, 16, 34, 16, 0x357cb4, undefined);
+      const ripple = phase * 5;
+      g.fillStyle(0x9fe0ff, 0.75);
+      g.fillRect(14 + ripple, 12, 13, 1);
+      g.fillRect(31 - ripple, 20 + (phase % 2), 11, 1);
+      g.fillRect(41 + ripple, 9, 7, 1);
+      g.fillStyle(0xd8f4ff, 0.5);
+      g.fillRect(21 - ripple, 17, 6, 1);
+      g.fillRect(44 - ripple, 23, 5, 1);
+      g.fillStyle(0x0d2846, 0.5);
+      g.fillRect(23 + ripple, 26, 14, 1);
+      g.fillRect(9 + ripple, 19, 7, 1);
     }
     if (kind === 'bridge') {
-      g.fillStyle(0x6b4a2a);
-      for (let i = -2; i <= 2; i++) poly(g, [32 + i * 9, 5, 39 + i * 9, 16, 32 + i * 9, 27, 25 + i * 9, 16]);
-      g.fillStyle(0x8a6238);
-      for (let i = -2; i <= 2; i++) poly(g, [32 + i * 9, 6, 37 + i * 9, 16, 32 + i * 9, 26, 27 + i * 9, 16]);
-      g.lineStyle(1, 0x3c2817);
-      for (let i = -2; i <= 2; i++) seg(g, 32 + i * 9, 5, 32 + i * 9, 27, 0x3c2817);
+      diamond(g, 32, 16, 62, 30, 0x1b436b, 0x102d4c, 2);
+      g.fillStyle(0x4a321d);
+      for (let i = -2; i <= 2; i++) poly(g, [32 + i * 9, 4, 40 + i * 9, 16, 32 + i * 9, 28, 24 + i * 9, 16]);
+      g.fillStyle(0x7b5632);
+      for (let i = -2; i <= 2; i++) poly(g, [32 + i * 9, 5, 38 + i * 9, 16, 32 + i * 9, 27, 26 + i * 9, 16]);
+      g.fillStyle(0xa97b49, 0.8);
+      for (let i = -2; i <= 2; i++) poly(g, [32 + i * 9, 5, 35 + i * 9, 16, 32 + i * 9, 27, 29 + i * 9, 16]);
+      g.lineStyle(1, 0x2f1d10);
+      for (let i = -2; i <= 2; i++) seg(g, 32 + i * 9, 5, 32 + i * 9, 27, 0x2f1d10);
+      g.fillStyle(0x3f8050, 0.35);
+      g.fillEllipse(11, 23, 9, 4);
+      g.fillEllipse(51, 9, 8, 4);
     }
     if (kind === 'stair') {
-      g.fillStyle(0xb8b2a0, 0.4);
+      g.fillStyle(0xb8b2a0, 0.45);
       poly(g, [0, 16, 32, 32, 64, 16, 32, 0]);
+      g.fillStyle(0xffffff, 0.12);
+      poly(g, [0, 16, 32, 0, 34, 2, 4, 18]);
       g.lineStyle(2, 0x6e6a60);
       for (let i = -2; i <= 2; i++) seg(g, 32 + i * 10, 5, 32 + i * 10, 27, 0x6e6a60, 2);
     }
     if (kind === 'secret') {
-      g.fillStyle(0x8d76c9, 0.16);
+      g.fillStyle(0x8d76c9, 0.2);
       diamond(g, 32, 16, 58, 28);
+      g.lineStyle(1, 0xb18cff, 0.35);
+      diamond(g, 32, 16, 44, 20, undefined, 0xb18cff, 1);
     }
   });
 }
@@ -189,8 +229,19 @@ function wallTexture(scene: Phaser.Scene, key: string, seed: number) {
       seg(g, 6, 22, 12, 30, 0x2d2b3e);
       seg(g, 12, 30, 10, 38, 0x2d2b3e);
     }
-    g.fillStyle(0xffffff, 0.07);
+    g.fillStyle(0xffffff, 0.09);
     g.fillTriangle(32, 2, 40, 8, 32, 8);
+    g.fillStyle(0x161527, 0.22);
+    poly(g, [2, 20, 8, 23, 6, 31, 1, 28]);
+    poly(g, [57, 33, 63, 30, 63, 39, 58, 42]);
+    g.fillStyle(0x4f9e58, 0.38);
+    g.fillEllipse(8, 30 + WH * 0.45, 12, 9);
+    g.fillEllipse(52, 21 + WH * 0.7, 9, 7);
+    g.fillStyle(0x9ade7f, 0.28);
+    g.fillEllipse(11, 27 + WH * 0.4, 7, 4);
+    g.lineStyle(1, shade(top, -46), 0.6);
+    seg(g, 24, 10, 28, 16, shade(top, -46));
+    seg(g, 28, 16, 25, 22, shade(top, -46));
   });
 }
 
@@ -213,9 +264,16 @@ function columnTexture(scene: Phaser.Scene, key: string, seed: number) {
     poly(g, [12, 14, 28, 20, 44, 14, 44, 21, 28, 27, 12, 21]);
     g.fillStyle(0x5b5672);
     poly(g, [12, 14, 28, 8, 44, 14, 28, 20]);
-    g.fillStyle(0x3f8050, 0.35);
+    g.fillStyle(0x3f8050, 0.4);
     g.fillEllipse(22, 62, 8, 5);
+    g.fillEllipse(38, 44, 6, 4);
+    g.fillStyle(0x9ade7f, 0.28);
+    g.fillEllipse(23, 60, 5, 3);
     if (seed % 2) seg(g, 22, 32, 26, 48, 0x3a354e);
+    g.lineStyle(1, 0xa9a3bb, 0.5);
+    seg(g, 20, 21, 20, 69, 0xa9a3bb);
+    g.fillStyle(0x2b2940, 0.3);
+    poly(g, [37, 28, 40, 36, 37, 45, 34, 38]);
   });
 }
 
@@ -243,9 +301,26 @@ function treeTexture(scene: Phaser.Scene, key: string, seed: number) {
       g.fillStyle(greens[i % greens.length]);
       g.fillCircle(cx, cy, 13 + rand() * 10);
     }
-    g.fillStyle(0xa8e07f, 0.55);
+    g.fillStyle(0x12321e, 0.5);
+    g.fillEllipse(38, 50, 64, 26);
+    for (let i = 0; i < 12; i++) {
+      const cx = 38 + (rand() - 0.5) * 48;
+      const cy = 30 + (rand() - 0.5) * 26;
+      g.fillStyle(greens[(i + seed) % 3], 0.75);
+      g.fillEllipse(cx, cy, 12 + rand() * 8, 7 + rand() * 5);
+    }
+    g.lineStyle(2, 0x2f7a3c, 0.7);
+    for (let i = 0; i < 4; i++) {
+      const x = 16 + i * 14 + rand() * 4;
+      seg(g, x, 32 + rand() * 8, x + 2, 52 + rand() * 12, 0x2f7a3c, 2);
+    }
+    g.fillStyle(0xa8e07f, 0.65);
     g.fillCircle(27, 24, 5);
     g.fillCircle(49, 31, 4);
+    g.fillCircle(39, 18, 3);
+    g.fillStyle(0xffe9a3, 0.75);
+    g.fillCircle(31, 39, 1.5);
+    g.fillCircle(52, 44, 1.5);
   });
 }
 
@@ -276,9 +351,17 @@ function rockTexture(scene: Phaser.Scene, key: string, seed: number) {
     poly(g, [31, 21, 42, 17, 46, 38, 31, 38]);
     g.fillStyle(0x2b2b3b);
     g.fillRect(9, 36, 34, 4);
-    g.fillStyle(0x3f8050, 0.5);
-    g.fillEllipse(20, 14, 10, 5);
-    if (seed % 2) seg(g, 27, 6, 31, 21, 0x8a8ba5);
+    g.fillStyle(0x3f8050, 0.55);
+    g.fillEllipse(20, 14, 12, 6);
+    g.fillEllipse(39, 29, 8, 4);
+    g.fillStyle(0x7bd07a, 0.3);
+    g.fillEllipse(22, 12, 7, 3);
+    g.fillStyle(0x9fa0bd, 0.35);
+    poly(g, [12, 16, 27, 5, 24, 12, 15, 20]);
+    if (seed % 2) {
+      seg(g, 27, 6, 31, 21, 0x8a8ba5);
+      seg(g, 14, 22, 22, 28, 0x2b2b3b);
+    }
   });
 }
 
@@ -614,6 +697,22 @@ function drawHero(g: Phaser.GameObjects.Graphics, facing: Facing, pose: HeroPose
     px(g, 13, 9, 1, 1, 0x1b1f3b);
   }
 
+  px(g, 5, 13 - breath, 2, 6, 0xd7b45c);
+  px(g, 15, 13 - breath, 2, 6, 0xd7b45c);
+  px(g, 7, 20, 2, 2, 0xffd166);
+  px(g, 13, 20, 2, 2, 0xffd166);
+  if (facing === 'front') {
+    px(g, 5, 12 - breath, 1, 10, shade(cape, 28));
+    px(g, 10, 12 - breath, 1, 10, shade(capeDark, 20));
+    px(g, 10, 9, 1, 1, 0x9dffd6);
+    px(g, 12, 9, 1, 1, 0x9dffd6);
+  } else if (facing === 'side') {
+    px(g, 5, 12 - breath, 1, 9, shade(cape, 28));
+    px(g, 14, 9, 1, 1, 0x9dffd6);
+  } else {
+    px(g, 11, 12 - breath, 1, 11, shade(cape, 24));
+    px(g, 16, 12 - breath, 1, 11, shade(capeDark, 22));
+  }
   if (dodge) {
     g.fillStyle(0x9dffd6, 0.35);
     g.fillEllipse(22, 30, 44, 12);
@@ -658,6 +757,12 @@ function enemyTexture(g: Phaser.GameObjects.Graphics, kind: string, frame: numbe
       g.fillStyle(0x120e22); g.fillCircle(25, 34 - bob, 1); g.fillCircle(39, 34 - bob, 1);
       g.fillStyle(0x9d4edd, 0.5); g.fillTriangle(32, 6 - bob, 24, 22 - bob, 40, 22 - bob);
     }
+    g.lineStyle(1, 0xffffff, 0.16);
+    g.strokeEllipse(32, 42 - bob, 34, 44);
+    g.fillStyle(0xffffff, 0.14);
+    g.fillEllipse(25, 28 - bob, 8, 5);
+    g.fillStyle(0x0b0a16, 0.28);
+    g.fillEllipse(32, 61, 30, 7);
 }
 
 function bossTexture(g: Phaser.GameObjects.Graphics, kind: string, frame: number) {
@@ -702,6 +807,12 @@ function bossTexture(g: Phaser.GameObjects.Graphics, kind: string, frame: number
       }
       g.fillStyle(0xff70d0); g.fillCircle(32, 46 - bob, 3); g.fillCircle(76, 68 - bob, 3);
     }
+    g.lineStyle(2, glow, 0.28);
+    g.strokeEllipse(54, 58 - bob, 92, 96);
+    g.fillStyle(0xffffff, 0.1);
+    g.fillEllipse(42, 30 - bob, 28, 14);
+    g.fillStyle(0x000000, 0.28);
+    g.fillEllipse(54, 105, 74, 12);
 }
 
 /* ─────────────────────────────── Efectos ─────────────────────────────── */
@@ -750,6 +861,16 @@ export function buildIsoTextures(scene: Phaser.Scene) {
     ['iso_stairs', 0x8d8879, 9, 'stair'],
   ];
   floors.forEach(([key, color, seed, kind]) => floorTexture(scene, key, color, seed, kind));
+
+  const biomes: Record<string, number[]> = {
+    overworld: [0x8f8b76, 0x9b947f, 0x847f6d, 0x948d78],
+    dungeon: [0x6f6c7c, 0x7b7787, 0x676476, 0x757183],
+    temple: [0x9b8f7a, 0xa79a83, 0x8c8270, 0xa1967f],
+  };
+  Object.entries(biomes).forEach(([biome, colors]) => {
+    colors.forEach((color, i) => floorTexture(scene, `iso_floor_${biome}${i}`, color, i + biome.length, 'stone'));
+  });
+  for (let i = 0; i < 4; i++) floorTexture(scene, `iso_water${i}`, 0x24507f, 6, 'water', i);
 
   // muros y columnas
   for (let i = 0; i < 4; i++) wallTexture(scene, `iso_wall${i}`, i);
@@ -815,6 +936,33 @@ export function buildIsoTextures(scene: Phaser.Scene) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(4, 4, 3.2, 0, Math.PI * 2); ctx.fill();
   });
+  makeCanvas(scene, 'iso_mote', 16, 16, (ctx) => {
+    const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 16, 16);
+  });
+  makeCanvas(scene, 'iso_leaf', 14, 10, (ctx) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(1, 5); ctx.quadraticCurveTo(7, -1, 13, 5); ctx.quadraticCurveTo(7, 11, 1, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(20,60,35,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(2, 5); ctx.lineTo(12, 5); ctx.stroke();
+  });
+  makeCanvas(scene, 'iso_ember', 10, 14, (ctx) => {
+    const grad = ctx.createLinearGradient(0, 14, 0, 0);
+    grad.addColorStop(0, 'rgba(255,120,30,0)');
+    grad.addColorStop(0.4, 'rgba(255,190,70,0.9)');
+    grad.addColorStop(1, 'rgba(255,255,220,1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(5, 0); ctx.quadraticCurveTo(10, 7, 5, 14); ctx.quadraticCurveTo(0, 7, 5, 0);
+    ctx.fill();
+  });
   make(scene, 'slash_arc', 86, 86, (g) => {
     g.lineStyle(9, 0xffffff, 0.28);
     g.beginPath(); g.arc(43, 43, 32, -0.95, 0.95); g.strokePath();
@@ -844,5 +992,4 @@ export function buildIsoTextures(scene: Phaser.Scene) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 256);
   });
-  void mix;
 }

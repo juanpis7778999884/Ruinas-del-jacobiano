@@ -67,7 +67,7 @@ export class MenuScene extends Phaser.Scene {
       fn: () => this.start(true),
     });
     this.entries.push({ label: 'Diario de fórmulas', hint: 'Repasa Fubini, regiones, polares y |J|', fn: () => void this.journal() });
-    this.entries.push({ label: 'Créditos y controles', hint: 'Cómo se hizo y cómo se juega', fn: () => this.credits() });
+    this.entries.push({ label: 'Controles y créditos', hint: 'Ajusta las teclas, consulta la ayuda y los créditos', fn: () => this.credits() });
 
     this.entries.forEach((entry, i) => {
       const y = 222 + i * 62;
@@ -197,6 +197,7 @@ export class MenuScene extends Phaser.Scene {
   private start(fresh: boolean) {
     if (fresh) Save.reset();
     this.locked = true;
+    Controls.refreshBindings();
     Controls.setEnabled(true);
     Save.data.currentZone = Save.data.currentZone in ZONES ? Save.data.currentZone : 'cartesia';
     Save.save();
@@ -214,7 +215,7 @@ export class MenuScene extends Phaser.Scene {
 
   private credits() {
     this.locked = true;
-    openPanel('credits', { zone: 'cartesia', player: { x: 0, y: 0 }, fromMenu: true });
+    openPanel('controls', { zone: 'cartesia', player: { x: 0, y: 0 }, fromMenu: true });
     const unlock = () => {
       this.locked = false;
       window.removeEventListener('panel-closed', unlock);

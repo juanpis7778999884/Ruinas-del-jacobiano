@@ -29,8 +29,8 @@ Abre `http://localhost:5173`.
 |---|---|---|
 | Mover | WASD / flechas | Joystick izquierdo |
 | Interactuar / avanzar diálogo | E, Enter | Botón A |
-| Atacar | Espacio, K | Botón B |
-| Golpe pesado | H | Botón C |
+| Atacar | Espacio, K | Botón ⚔ |
+| Golpe pesado | H | Botón ✦ |
 | Esquivar | Shift | Botón ↷ |
 | Defender | G | Botón ◇ |
 | Diario de fórmulas | J | Botón ∫ |
@@ -40,6 +40,8 @@ Abre `http://localhost:5173`.
 | Misiones | L | Botón 📜 |
 | Beber elixir | R | Botón ✚ |
 | Pausa / ajustes | Esc | Botón ☰ |
+
+Todas las teclas se pueden reasignar desde **Controles y ayuda** en el menú o en la pausa. Los botones táctiles son independientes y permiten moverse, atacar y usar accesos rápidos al mismo tiempo.
 
 ## Progresión
 

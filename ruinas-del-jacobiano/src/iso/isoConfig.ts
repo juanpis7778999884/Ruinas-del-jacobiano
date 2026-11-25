@@ -10,7 +10,7 @@ export const ISO_SPEED = 3.5;
 /** Radio de colisión del héroe en unidades de casilla. */
 export const ISO_PLAYER_R = 0.29;
 
-export const ISO_CAMERA_ZOOM = 1.05;
+export const ISO_CAMERA_ZOOM = 0.92;
 export const ISO_BG = 0x0d1024;
 
 export const DEPTH_FLOOR = 0;

@@ -63,7 +63,7 @@ src/
     Dialogue.ts           diálogo con retratos y opciones
     QuestionModal.ts      modal KaTeX
     Journal.ts            diario de fórmulas
-    Overlays.ts           inventario, mapa, misiones, pausa, muerte, créditos
+    Overlays.ts           inventario, mapa, misiones, pausa, muerte, créditos, controles y ayuda
 ```
 
 ## Reglas de arquitectura
@@ -86,5 +86,5 @@ No agregar preguntas cuya respuesta no esté verificada matemáticamente.
 ## Estado actual
 
 - Proyecto convertido de top-down a 2.5D isométrico.
-- Combate, jefes, puzzles, narrativa, HUD, paneles,audio y PWA integrados.
+- Combate, jefes, puzzles, narrativa, HUD, paneles, audio, reasignación de teclas y PWA integrados.
 - `WorldScene` es la escena isométrica principal.
